@@ -1,0 +1,51 @@
+### Variable Setup
+@host = https://func-fortianswer-gccvakhgayenbdak.canadacentral-01.azurewebsites.net
+@contentType = application/json
+
+### Test 1 & 2: Health Check
+GET {{host}}/api/health
+
+### Test 3: Normal Flow (Internal Only)
+# Expected: needsWebConfirmation should be false.
+POST {{host}}/api/chat
+Content-Type: {{contentType}}
+
+{
+    "message": "What is our internal password rotation policy?",
+    "requestType": "Internal",
+    "conversationId": "test-conv-001"
+}
+
+### Test 7: Consent Flow (Step 1 - Triggering the Modal)
+# Expected: needsWebConfirmation should be true, and a webSearchToken should be returned.
+POST {{host}}/api/chat
+Content-Type: {{contentType}}
+
+{
+    "message": "Explain CVE-2024-3094 impact",
+    "requestType": "Public",
+    "conversationId": "test-conv-002"
+}
+
+### Test 8: Consent Flow (Step 2 - Confirming the Search)
+# INSTRUCTION: Copy the "webSearchToken" from the response of Test 7 and paste it below.
+# Expected: needsWebConfirmation is false, full answer is provided.
+POST {{host}}/api/chat
+Content-Type: {{contentType}}
+
+{
+    "message": "Explain CVE-2024-3094 impact",
+    "requestType": "Public",
+    "conversationId": "test-conv-002",
+    "confirmWebSearch": true,
+    "webSearchToken": "eyJleHAiOjE3NzE2MjMzNzUsIm1oIjoiYmIzMDY1Y2YxZTQyYTY0OGM1MTMzZGIyNjFhY2JiZGVkMmRjNmNiZTNjNDhhMDliZjdiYTk1OTdmMTE0OGYyMSJ9.X0131dNMg4jqteIGhDB3vD-3msQTHkDCCuONbj7CVeM"
+}
+
+### Test 10: Error Handling (Validation)
+# Expected: 400 Bad Request
+POST {{host}}/api/chat
+Content-Type: {{contentType}}
+
+{
+    "message": ""
+}
