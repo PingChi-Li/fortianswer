@@ -40,5 +40,6 @@ export const STORAGE_KEYS = {
   THEME: 'fortianswer_theme',
   SIDEBAR_COLLAPSED: 'fortianswer_sidebar_collapsed',
   RECENT_ACTIVITY: 'fortianswer_recent_activity',
-  RAG_CONFIG: 'fortianswer_rag_config'
+  RAG_CONFIG: 'fortianswer_rag_config',
+  ROLE: 'fortianswer_role'
 }

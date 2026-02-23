@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Link, useLocation, Outlet } from 'react-router-dom'
-import { useUser } from '../../contexts/UserContext'
+import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../contexts/AuthContext'
 import { STORAGE_KEYS } from '../../utils/constants'
 import Footer from '../common/Footer'
 
@@ -13,7 +13,8 @@ const navItems = [
 
 export default function AppLayout() {
   const location = useLocation()
-  const { user } = useUser()
+  const navigate = useNavigate()
+  const { role, logout } = useAuth()
   const [collapsed, setCollapsed] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.SIDEBAR_COLLAPSED)
     return saved === 'true'
@@ -28,6 +29,11 @@ export default function AppLayout() {
     return location.pathname.startsWith(path)
   }
 
+  const handleLogout = () => {
+    logout()
+    navigate('/login', { replace: true })
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       <div className="flex flex-1" style={{ paddingBottom: '4rem' }}>
@@ -36,13 +42,14 @@ export default function AppLayout() {
             collapsed ? 'w-16' : 'w-56'
           }`}
         >
-          <div className="p-3 flex items-center justify-between border-b border-gray-700 min-h-[56px]">
-            {!collapsed && (
-              <Link to="/" className="text-lg font-bold text-blue-400 truncate">
-                FortiAnswer
-              </Link>
-            )}
-            <button
+          <div className="p-3 flex flex-col gap-1 border-b border-gray-700 min-h-[56px]">
+            <div className="flex items-center justify-between">
+              {!collapsed && (
+                <Link to="/" className="text-lg font-bold text-blue-400 truncate">
+                  FortiAnswer
+                </Link>
+              )}
+              <button
               type="button"
               onClick={() => setCollapsed(!collapsed)}
               className="p-2 rounded hover:bg-gray-700 transition-colors"
@@ -50,6 +57,21 @@ export default function AppLayout() {
             >
               {collapsed ? '→' : '←'}
             </button>
+            </div>
+            {!collapsed && role && (
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-xs text-gray-400 truncate">
+                  {role}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="text-xs text-gray-400 hover:text-white truncate"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
           </div>
           <nav className="flex-1 py-2">
             {navItems.map((item) => (
@@ -66,7 +88,7 @@ export default function AppLayout() {
                 {!collapsed && <span>{item.label}</span>}
               </Link>
             ))}
-            {user.isAdmin && (
+            {role === 'Admin' && (
               <Link
                 to="/admin"
                 className={`flex items-center gap-3 px-3 py-2.5 mx-2 rounded-lg transition-colors ${

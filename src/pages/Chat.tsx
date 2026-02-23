@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { RequestType } from '../types'
 import { useChat } from '../hooks/useChat'
+import { useAuth } from '../contexts/AuthContext'
 import RequestTypePicker from '../components/chat/RequestTypePicker'
 import ChatWidget from '../components/chat/ChatWidget'
 import SourceDetailDrawer from '../components/chat/SourceDetailDrawer'
@@ -13,7 +14,15 @@ const MOCK_SESSIONS = [
   { id: 's2', title: 'VPN connection help', date: 'Yesterday' }
 ]
 
+const CHAT_TITLE_BY_ROLE: Record<string, string> = {
+  Customer: 'Security Chat Assistant',
+  Agent: 'Internal Helpdesk Chat',
+  Admin: 'Security Console'
+}
+
 export default function Chat() {
+  const { role } = useAuth()
+  const chatTitle = CHAT_TITLE_BY_ROLE[role ?? 'Customer'] ?? 'Security Chat Assistant'
   const [selectedRequestType, setSelectedRequestType] = useState<RequestType | null>(null)
   const [forceShowChat, setForceShowChat] = useState(false)
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null)
@@ -28,6 +37,7 @@ export default function Chat() {
     messages,
     isLoading,
     pendingWebSearchConsent,
+    isPublic,
     sendMessage,
     confirmWebSearch,
     submitFeedback,
@@ -93,7 +103,7 @@ export default function Chat() {
           {!selectedRequestType && !forceShowChat ? (
             <div className="container mx-auto px-4 py-8 max-w-3xl">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-                Security Chat Assistant
+                {chatTitle}
               </h1>
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -173,12 +183,14 @@ export default function Chat() {
         )}
       </div>
 
-      {/* Web Search Consent modal */}
-      <WebSearchConsentModal
-        open={!!pendingWebSearchConsent}
-        onYes={() => confirmWebSearch('yes')}
-        onNo={() => confirmWebSearch('no')}
-      />
+      {/* Web Search Consent modal (Public dataBoundary only) */}
+      {isPublic && (
+        <WebSearchConsentModal
+          open={!!pendingWebSearchConsent}
+          onYes={() => confirmWebSearch('yes')}
+          onNo={() => confirmWebSearch('no')}
+        />
+      )}
 
       {/* Escalate modal */}
       {escalateOpen && (

@@ -1,4 +1,5 @@
 import { createContext, useContext, ReactNode } from 'react'
+import { useAuth } from './AuthContext'
 
 export interface User {
   name: string
@@ -35,8 +36,16 @@ const UserContext = createContext<UserContextValue>({
 })
 
 export function UserProvider({ children }: { children: ReactNode }) {
+  const { user: authUser } = useAuth()
   const value: UserContextValue = {
-    user: { ...defaultUser, isAdmin: true },
+    user: authUser
+      ? {
+          name: authUser.username,
+          email: `${authUser.username}@company.com`,
+          role: authUser.role,
+          isAdmin: authUser.role === 'Admin'
+        }
+      : { ...defaultUser, isAdmin: false },
     footerContacts: defaultFooterContacts
   }
   return (

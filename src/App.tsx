@@ -1,6 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider } from './contexts/AuthContext'
 import { UserProvider } from './contexts/UserContext'
 import AppLayout from './components/layout/AppLayout'
+import ProtectedRoute from './components/ProtectedRoute'
+import Login from './pages/Login'
 import Landing from './pages/Landing'
 import Chat from './pages/Chat'
 import Admin from './pages/Admin'
@@ -13,23 +16,28 @@ import Knowledge from './pages/Knowledge'
 function App() {
   return (
     <BrowserRouter>
-      <UserProvider>
-        <Routes>
-          <Route element={<AppLayout />}>
-            <Route path="/" element={<Landing />} />
-            <Route path="/chat" element={<Chat />} />
-            <Route path="/faq" element={<Navigate to="/knowledge?type=faq" replace />} />
-            <Route path="/policy" element={<Navigate to="/knowledge?type=policy" replace />} />
-            <Route path="/knowledge" element={<Knowledge />} />
-            <Route path="/tickets" element={<Tickets />} />
-            <Route path="/admin" element={<Admin />} />
-            <Route path="/create-ticket" element={<CreateTicket />} />
-            <Route path="/contact-support" element={<ContactSupport />} />
-            <Route path="/escalate" element={<Escalate />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </UserProvider>
+      <AuthProvider>
+        <UserProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AppLayout />}>
+                <Route path="/" element={<Landing />} />
+                <Route path="/chat" element={<Chat />} />
+                <Route path="/faq" element={<Navigate to="/knowledge?type=faq" replace />} />
+                <Route path="/policy" element={<Navigate to="/knowledge?type=policy" replace />} />
+                <Route path="/knowledge" element={<Knowledge />} />
+                <Route path="/tickets" element={<Tickets />} />
+                <Route path="/admin" element={<Admin />} />
+                <Route path="/create-ticket" element={<CreateTicket />} />
+                <Route path="/contact-support" element={<ContactSupport />} />
+                <Route path="/escalate" element={<Escalate />} />
+              </Route>
+            </Route>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </UserProvider>
+      </AuthProvider>
     </BrowserRouter>
   )
 }

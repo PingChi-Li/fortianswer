@@ -22,8 +22,7 @@ export default function WebSearchConsentModal({ open, onYes, onNo }: WebSearchCo
           Allow Web Search?
         </h2>
         <p className="text-gray-600 dark:text-gray-300 mb-6">
-          To provide a complete answer, the assistant can search the web for additional
-          information. Would you like to allow this?
+          Do you allow access to the internet to search for further information?
         </p>
         <div className="flex gap-3">
           <button

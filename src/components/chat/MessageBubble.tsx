@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react'
 import { ChatMessage, MessageFeedback, Citation } from '../../types'
 import LoadingSpinner from '../common/LoadingSpinner'
 import FeedbackUI from './FeedbackUI'
@@ -44,12 +45,37 @@ function renderContentWithCitations(
   )
 }
 
+function CopyRequestIdButton({ requestId }: { requestId: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(requestId)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setCopied(false)
+    }
+  }, [requestId])
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+    >
+      {copied ? 'Copied!' : 'Copy RequestId'}
+    </button>
+  )
+}
+
 export default function MessageBubble({ message, onFeedback, onCitationClick }: MessageBubbleProps) {
   const isUser = message.role === 'user'
   const isRetrieving = message.status === 'retrieving'
   const isGenerating = message.status === 'generating'
   const isError = message.status === 'error'
-  const isComplete = message.status === 'complete' || !message.status
+  const isEscalated = message.status === 'escalated'
+  const isComplete = message.status === 'complete' || (!message.status && !isEscalated)
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
@@ -62,8 +88,36 @@ export default function MessageBubble({ message, onFeedback, onCitationClick }: 
       >
         {isUser ? (
           <p className="whitespace-pre-wrap">{message.content}</p>
+        ) : isEscalated ? (
+          <div className="space-y-3">
+            <div className="font-semibold text-amber-700 dark:text-amber-400">
+              The escalated case
+            </div>
+            {message.escalation?.reason && (
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                {message.escalation.reason}
+              </p>
+            )}
+            {message.requestId && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  Request ID: {message.requestId}
+                </span>
+                <CopyRequestIdButton requestId={message.requestId} />
+              </div>
+            )}
+          </div>
         ) : (
           <div>
+            {message.actionHints && message.actionHints.length > 0 && (
+              <div className="mb-3 p-3 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 text-sm">
+                {message.actionHints.map((hint, i) => (
+                  <p key={i} className="mb-1 last:mb-0">
+                    {hint}
+                  </p>
+                ))}
+              </div>
+            )}
             {isRetrieving && (
               <div className="flex items-center gap-2 mb-2">
                 <LoadingSpinner size="sm" />

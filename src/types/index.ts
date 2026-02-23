@@ -1,3 +1,14 @@
+// App Roles and Data Boundaries
+export type AppRole = 'Customer' | 'Agent' | 'Admin'
+
+export type DataBoundary = 'Public' | 'Internal' | 'Confidential'
+
+export const ROLE_TO_DATA_BOUNDARY: Record<AppRole, DataBoundary> = {
+  Customer: 'Public',
+  Agent: 'Internal',
+  Admin: 'Confidential'
+}
+
 // Request Types
 export type RequestType = 
   | 'phishing'
@@ -15,6 +26,7 @@ export type MessageStatus =
   | 'error'
   | 'no-answer'
   | 'complete'
+  | 'escalated'
 
 export interface Citation {
   id: string
@@ -28,6 +40,11 @@ export interface Citation {
   snippet?: string
 }
 
+export interface EscalationInfo {
+  shouldEscalate: boolean
+  reason?: string
+}
+
 export interface ChatMessage {
   id: string
   role: MessageRole
@@ -36,6 +53,10 @@ export interface ChatMessage {
   citations?: Citation[]
   timestamp: Date
   requestType?: RequestType
+  /** For escalated messages */
+  escalation?: EscalationInfo
+  requestId?: string
+  actionHints?: string[]
 }
 
 // Feedback Types
@@ -111,11 +132,11 @@ export interface Ticket {
 // Azure Chat API Types
 export interface ChatApiRequest {
   message: string
+  issueType?: string
+  dataBoundary: DataBoundary
   conversationId?: string
-  userRole: 'User' | 'Admin'
-  userGroup?: string
   confirmWebSearch?: boolean
-  webSearchToken?: string
+  webSearchToken?: string | null
 }
 
 export interface ApiCitation {
@@ -130,6 +151,8 @@ export interface ChatApiResponse {
   needsWebConfirmation?: boolean
   webSearchToken?: string
   requestId?: string
+  escalation?: EscalationInfo
+  actionHints?: string[]
 }
 
 // API Response Types

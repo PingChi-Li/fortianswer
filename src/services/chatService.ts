@@ -1,5 +1,10 @@
-import type { ChatApiRequest, ChatApiResponse } from '../types'
+import type { AppRole, ChatApiRequest, ChatApiResponse } from '../types'
 import { API_BASE_URL } from '../utils/constants'
+
+export interface SendChatOptions {
+  correlationId?: string
+  role: AppRole
+}
 
 function getChatEndpoint(): string {
   const base = API_BASE_URL.replace(/\/$/, '')
@@ -20,11 +25,13 @@ function isTokenExpirationError(message: string): boolean {
 
 export async function sendChatRequest(
   request: ChatApiRequest,
-  correlationId?: string
+  options: SendChatOptions
 ): Promise<ChatApiResponse> {
+  const { correlationId, role } = options
   const url = getChatEndpoint()
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'x-user-role': role
   }
   if (correlationId) {
     headers['x-correlation-id'] = correlationId
