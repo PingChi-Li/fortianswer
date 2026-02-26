@@ -88,9 +88,8 @@ export default function Login() {
               />
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Demo: Jane, Bob, or Admin — password: 12345
+              Please set up MFA to protect you and your company&apos;s information.
             </p>
-
             <button
               type="submit"
               className="w-full px-4 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors"
