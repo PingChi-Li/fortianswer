@@ -3,34 +3,40 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import type { AppRole } from '../types'
 
-const ROLES: { value: AppRole; label: string }[] = [
-  { value: 'Customer', label: 'Customer Portal (General Q&A)' },
-  { value: 'Agent', label: 'Helpdesk (Internal Service)' },
-  { value: 'Admin', label: 'Security Console (Confidential Information)' }
-]
+const HARDCODED_ACCOUNTS: Record<string, { password: string; role: AppRole }> = {
+  Jane: { password: '12345', role: 'Agent' },
+  Bob: { password: '12345', role: 'Customer' },
+  Admin: { password: '12345', role: 'Admin' }
+}
 
 export default function Login() {
   const navigate = useNavigate()
   const { login } = useAuth()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<AppRole>('Customer')
   const [error, setError] = useState('')
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     setError('')
 
-    if (!username.trim()) {
+    const trimmed = username.trim()
+    if (!trimmed) {
       setError('Username is required')
       return
     }
-    if (!password.trim()) {
+    if (!password) {
       setError('Password is required')
       return
     }
 
-    login(username.trim(), password, role)
+    const account = HARDCODED_ACCOUNTS[trimmed]
+    if (!account || account.password !== password) {
+      setError('Invalid username or password')
+      return
+    }
+
+    login(trimmed, password, account.role)
     navigate('/', { replace: true })
   }
 
@@ -81,24 +87,9 @@ export default function Login() {
                 autoComplete="current-password"
               />
             </div>
-
-            <div>
-              <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Role
-              </label>
-              <select
-                id="role"
-                value={role}
-                onChange={(e) => setRole(e.target.value as AppRole)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {ROLES.map((r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Demo: Jane, Bob, or Admin — password: 12345
+            </p>
 
             <button
               type="submit"

@@ -17,29 +17,32 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-function getStoredRole(): AppRole | null {
-  const stored = localStorage.getItem(STORAGE_KEYS.ROLE)
-  if (stored === 'Customer' || stored === 'Agent' || stored === 'Admin') {
-    return stored
+function getStoredAuthSession(): AuthUser | null {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.AUTH_SESSION)
+    if (!stored) return null
+    const parsed = JSON.parse(stored) as { username?: string; role?: string }
+    if (parsed?.username && parsed?.role && (parsed.role === 'Customer' || parsed.role === 'Agent' || parsed.role === 'Admin')) {
+      return { username: parsed.username, role: parsed.role as AppRole }
+    }
+  } catch {
+    // ignore invalid session
   }
   return null
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    const role = getStoredRole()
-    if (role) {
-      return { username: 'user', role }
-    }
-    return null
-  })
+  const [user, setUser] = useState<AuthUser | null>(() => getStoredAuthSession())
 
   const login = useCallback((username: string, _password: string, role: AppRole) => {
+    const session = { username, role }
+    localStorage.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(session))
     localStorage.setItem(STORAGE_KEYS.ROLE, role)
-    setUser({ username, role })
+    setUser(session)
   }, [])
 
   const logout = useCallback(() => {
+    localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION)
     localStorage.removeItem(STORAGE_KEYS.ROLE)
     setUser(null)
   }, [])

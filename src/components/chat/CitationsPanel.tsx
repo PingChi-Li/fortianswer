@@ -30,6 +30,7 @@ export default function CitationsPanel({ citations }: CitationsPanelProps) {
               : null
           const internalPath = citation.link && !isUrl(citation.link) ? citation.link : null
           const label = citation.sourceName || (citation.urlOrId && !isUrl(citation.urlOrId) ? 'Internal document' : 'Source')
+          const scorePart = citation.score != null && label !== 'Internal document' ? ` (score: ${citation.score.toFixed(5)})` : ''
           const extra = citation.section ? ` - ${citation.section}` : citation.snippet ? ` - ${citation.snippet.slice(0, 60)}${citation.snippet.length > 60 ? '...' : ''}` : ''
 
           return (
@@ -41,21 +42,18 @@ export default function CitationsPanel({ citations }: CitationsPanelProps) {
                   rel="noopener noreferrer"
                   className="text-blue-600 dark:text-blue-400 hover:underline"
                 >
-                  {label}
-                  {extra}
+                  {label}{scorePart}{extra}
                 </a>
               ) : internalPath ? (
                 <Link
                   to={internalPath}
                   className="text-blue-600 dark:text-blue-400 hover:underline"
                 >
-                  {label}
-                  {extra}
+                  {label}{scorePart}{extra}
                 </Link>
               ) : (
                 <span className="text-gray-600 dark:text-gray-400">
-                  {citation.urlOrId ? 'Internal document' : label}
-                  {extra}
+                  {citation.urlOrId && !citation.sourceName ? 'Internal document' : label}{scorePart}{extra}
                 </span>
               )}
             </li>

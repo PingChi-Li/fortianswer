@@ -3,9 +3,9 @@ import { AdminSettings, AdminUser, RAGConfig, AuditLogEntry } from '../types'
 import { STORAGE_KEYS } from '../utils/constants'
 
 const MOCK_USERS: AdminUser[] = [
-  { id: '1', name: 'Admin User', email: 'admin@company.com', role: 'Admin', group: 'Security-Admins' },
-  { id: '2', name: 'Jane Analyst', email: 'jane@company.com', role: 'Analyst', group: 'Security-Analysts' },
-  { id: '3', name: 'Bob Viewer', email: 'bob@company.com', role: 'Viewer', group: 'All-Employees' }
+  { id: '1', name: 'Admin', email: 'admin@company.com', role: 'Admin', group: 'Security-Admins' },
+  { id: '2', name: 'Jane', email: 'jane@company.com', role: 'Agent', group: 'Security-Analysts' },
+  { id: '3', name: 'Bob', email: 'bob@company.com', role: 'Customer', group: 'All-Employees' }
 ]
 
 const MOCK_AUDIT_LOG: AuditLogEntry[] = [

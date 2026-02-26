@@ -40,6 +40,7 @@ export default function Chat() {
     isPublic,
     sendMessage,
     confirmWebSearch,
+    triggerOptionalWebSearch,
     submitFeedback,
     clearChat,
     setCurrentRequestType
@@ -167,6 +168,8 @@ export default function Chat() {
                     onSendMessage={handleSendMessage}
                     onFeedback={submitFeedback}
                     onCitationClick={setSelectedCitation}
+                    isPublic={isPublic}
+                    onOptionalWebSearch={triggerOptionalWebSearch}
                   />
                 </div>
               </div>

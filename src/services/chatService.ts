@@ -66,5 +66,9 @@ export async function sendChatRequest(
     throw err
   }
 
-  return body as ChatApiResponse
+  const b = body as Record<string, unknown>
+  const optionalWebSearchToken =
+    (b.optionalWebSearchToken as string | undefined) ??
+    ((b.next as Record<string, unknown>)?.optional_web_search as string | undefined)
+  return { ...b, optionalWebSearchToken: optionalWebSearchToken || undefined } as ChatApiResponse
 }

@@ -11,6 +11,8 @@ interface ChatWidgetProps {
   onSendMessage: (message: string) => void
   onFeedback: (feedback: MessageFeedback) => void
   onCitationClick?: (citation: Citation) => void
+  isPublic?: boolean
+  onOptionalWebSearch?: (messageId: string, userMessage: string, webSearchToken?: string) => void
 }
 
 const SUGGESTED_PROMPTS: Record<RequestType, string[]> = {
@@ -47,7 +49,9 @@ export default function ChatWidget({
   requestType,
   onSendMessage,
   onFeedback,
-  onCitationClick
+  onCitationClick,
+  isPublic,
+  onOptionalWebSearch
 }: ChatWidgetProps) {
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -87,6 +91,8 @@ export default function ChatWidget({
             message={message}
             onFeedback={onFeedback}
             onCitationClick={onCitationClick}
+            isPublic={isPublic}
+            onOptionalWebSearch={onOptionalWebSearch}
           />
         ))}
         {isLoading && messages.length > 0 && (

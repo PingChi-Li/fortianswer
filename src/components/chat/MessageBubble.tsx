@@ -8,6 +8,8 @@ interface MessageBubbleProps {
   message: ChatMessage
   onFeedback?: (feedback: MessageFeedback) => void
   onCitationClick?: (citation: Citation) => void
+  isPublic?: boolean
+  onOptionalWebSearch?: (messageId: string, userMessage: string, webSearchToken?: string) => void
 }
 
 function renderContentWithCitations(
@@ -69,7 +71,7 @@ function CopyRequestIdButton({ requestId }: { requestId: string }) {
   )
 }
 
-export default function MessageBubble({ message, onFeedback, onCitationClick }: MessageBubbleProps) {
+export default function MessageBubble({ message, onFeedback, onCitationClick, isPublic, onOptionalWebSearch }: MessageBubbleProps) {
   const isUser = message.role === 'user'
   const isRetrieving = message.status === 'retrieving'
   const isGenerating = message.status === 'generating'
@@ -152,6 +154,23 @@ export default function MessageBubble({ message, onFeedback, onCitationClick }: 
             )}
             {message.citations && message.citations.length > 0 && (
               <CitationsPanel citations={message.citations} />
+            )}
+            {isPublic && isComplete && message.optionalWebSearch?.webSearchToken && onOptionalWebSearch && (
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onOptionalWebSearch(
+                      message.id,
+                      message.optionalWebSearch!.userMessage,
+                      message.optionalWebSearch!.webSearchToken
+                    )
+                  }
+                  className="px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 font-medium"
+                >
+                  Optional Web Search
+                </button>
+              </div>
             )}
             {isComplete && message.content && onFeedback && (
               <FeedbackUI

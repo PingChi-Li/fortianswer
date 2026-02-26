@@ -4,8 +4,37 @@ import { sendChatRequest, type ChatServiceError } from '../services/chatService'
 import { useSession } from './useSession'
 import { useAuth } from '../contexts/AuthContext'
 
+/** Strip Azure debug metadata block from answer (cfg:, serverRequestId=, internal:, retrieval:, used:, next:, etc.) */
+function stripDebugBlock(answer: string): string {
+  const lines = answer.split('\n')
+  const debugPattern = /^(cfg:|serverRequestId=|role=|boundary=|issueType=|clientCorrelationId=|retrieval:|internal:|used:|next:)/
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i].trim()
+    if (!line || debugPattern.test(line)) {
+      i++
+      continue
+    }
+    break
+  }
+  const trimmed = lines.slice(i).join('\n').trim()
+  return trimmed || answer
+}
+
+function getDocumentTitle(c: ApiCitation & Record<string, unknown>): string | undefined {
+  const t = c.title ?? c.documentTitle ?? c.sourceTitle ?? c.name
+  return typeof t === 'string' && t.trim() ? t.trim() : undefined
+}
+
+function parseScore(snippet: string | undefined): number | undefined {
+  if (!snippet) return undefined
+  const m = snippet.match(/score\s*=\s*([\d.]+)/i)
+  return m ? parseFloat(m[1]) : undefined
+}
+
 function apiCitationsToCitations(apiCitations: ApiCitation[]): Citation[] {
   return apiCitations.map((c, i) => {
+    const apiC = c as ApiCitation & Record<string, unknown>
     const isUrl = (() => {
       try {
         return c.urlOrId.startsWith('http://') || c.urlOrId.startsWith('https://')
@@ -13,12 +42,16 @@ function apiCitationsToCitations(apiCitations: ApiCitation[]): Citation[] {
         return false
       }
     })()
+    const title = getDocumentTitle(apiC)
+    const score = (c as ApiCitation & { score?: number }).score ?? parseScore(c.snippet)
+    const snippetForContent = c.snippet && !/^score\s*=\s*[\d.]+$/i.test(c.snippet.trim()) ? c.snippet : undefined
     return {
       id: `cite_${i}`,
-      sourceName: c.title ?? (isUrl ? c.urlOrId : 'Internal document'),
+      sourceName: title ?? (isUrl ? c.urlOrId : 'Internal document'),
       urlOrId: c.urlOrId,
       link: isUrl ? c.urlOrId : undefined,
-      snippet: c.snippet
+      snippet: snippetForContent,
+      score
     }
   })
 }
@@ -116,7 +149,8 @@ export function useChat() {
         status: 'complete' | 'retrieving' = 'complete',
         escalation?: { shouldEscalate: boolean; reason?: string },
         requestId?: string,
-        actionHints?: string[]
+        actionHints?: string[],
+        optionalWebSearch?: { userMessage: string; webSearchToken?: string }
       ) => {
         setMessages((prev) =>
           prev.map((msg) =>
@@ -128,7 +162,8 @@ export function useChat() {
                   citations: escalation?.shouldEscalate ? undefined : (citations ? apiCitationsToCitations(citations) : undefined),
                   escalation: escalation?.shouldEscalate ? escalation : undefined,
                   requestId: escalation?.shouldEscalate ? requestId : undefined,
-                  actionHints: actionHints?.length ? actionHints : undefined
+                  actionHints: actionHints?.length ? actionHints : undefined,
+                  optionalWebSearch
                 }
               : msg
           )
@@ -159,7 +194,7 @@ export function useChat() {
         if (response.escalation?.shouldEscalate) {
           applySuccess(
             assistantMessageId,
-            response.answer,
+            stripDebugBlock(response.answer),
             undefined,
             'complete',
             response.escalation,
@@ -167,21 +202,26 @@ export function useChat() {
             response.actionHints
           )
         } else if (isPublic && response.needsWebConfirmation && response.webSearchToken) {
-          applySuccess(assistantMessageId, response.answer, response.citations, 'retrieving')
+          applySuccess(assistantMessageId, stripDebugBlock(response.answer), response.citations, 'retrieving')
           setPendingWebSearchConsent({
             message: content.trim(),
             webSearchToken: response.webSearchToken,
             messageId: assistantMessageId
           })
         } else {
+          const optionalWebSearch =
+            isPublic && !response.needsWebConfirmation && response.optionalWebSearchToken
+              ? { userMessage: content.trim(), webSearchToken: response.optionalWebSearchToken }
+              : undefined
           applySuccess(
             assistantMessageId,
-            response.answer,
+            stripDebugBlock(response.answer),
             response.citations,
             'complete',
             undefined,
             undefined,
-            response.actionHints
+            response.actionHints,
+            optionalWebSearch
           )
         }
       } catch {
@@ -260,7 +300,7 @@ export function useChat() {
 
         if (response.escalation?.shouldEscalate) {
           applySuccess(
-            response.answer,
+            stripDebugBlock(response.answer),
             undefined,
             response.escalation,
             response.requestId,
@@ -273,7 +313,7 @@ export function useChat() {
             messageId
           })
         } else {
-          applySuccess(response.answer, response.citations, undefined, undefined, response.actionHints)
+          applySuccess(stripDebugBlock(response.answer), response.citations, undefined, undefined, response.actionHints)
         }
       } catch (error) {
         const err = error as ChatServiceError
@@ -286,7 +326,7 @@ export function useChat() {
             }
             if (response.escalation?.shouldEscalate) {
               applySuccess(
-                response.answer,
+                stripDebugBlock(response.answer),
                 undefined,
                 response.escalation,
                 response.requestId,
@@ -299,7 +339,7 @@ export function useChat() {
                 messageId
               })
             } else {
-              applySuccess(response.answer, response.citations, undefined, undefined, response.actionHints)
+              applySuccess(stripDebugBlock(response.answer), response.citations, undefined, undefined, response.actionHints)
             }
           } catch (retryErr) {
             const retry = retryErr as ChatServiceError
@@ -314,6 +354,80 @@ export function useChat() {
       }
     },
     [pendingWebSearchConsent, performConsentRequest, performInitialRequest]
+  )
+
+  const triggerOptionalWebSearch = useCallback(
+    async (messageId: string, userMessage: string, webSearchToken?: string) => {
+      if (webSearchToken) {
+        setPendingWebSearchConsent({
+          message: userMessage,
+          webSearchToken,
+          messageId
+        })
+      } else {
+        setIsLoading(true)
+        setPendingWebSearchConsent(null)
+        try {
+          const { response } = await performInitialRequest(userMessage)
+          if (response.requestId) {
+            console.debug('[chat] requestId (optional web search):', response.requestId)
+          }
+          if (response.escalation?.shouldEscalate) {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === messageId
+                  ? {
+                      ...msg,
+                      content: stripDebugBlock(response.answer),
+                      status: 'escalated' as const,
+                      escalation: response.escalation,
+                      requestId: response.requestId,
+                      actionHints: response.actionHints,
+                      optionalWebSearch: undefined
+                    }
+                  : msg
+              )
+            )
+          } else if (response.needsWebConfirmation && response.webSearchToken) {
+            setPendingWebSearchConsent({
+              message: userMessage,
+              webSearchToken: response.webSearchToken,
+              messageId
+            })
+          } else {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === messageId
+                  ? {
+                      ...msg,
+                      content: stripDebugBlock(response.answer),
+                      citations: response.citations ? apiCitationsToCitations(response.citations) : msg.citations,
+                      actionHints: response.actionHints?.length ? response.actionHints : msg.actionHints,
+                      optionalWebSearch: undefined
+                    }
+                  : msg
+              )
+            )
+          }
+        } catch {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === messageId
+                ? {
+                    ...msg,
+                    content: msg.content + '\n\nSorry, I encountered an error. Please try again.',
+                    status: 'error' as const,
+                    optionalWebSearch: undefined
+                  }
+                : msg
+            )
+          )
+        } finally {
+          setIsLoading(false)
+        }
+      }
+    },
+    [performInitialRequest]
   )
 
   const submitFeedback = useCallback((feedback: MessageFeedback) => {
@@ -338,6 +452,7 @@ export function useChat() {
     isPublic,
     sendMessage,
     confirmWebSearch,
+    triggerOptionalWebSearch,
     submitFeedback,
     clearChat,
     setCurrentRequestType

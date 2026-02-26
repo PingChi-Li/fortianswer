@@ -38,11 +38,17 @@ export interface Citation {
   content?: string
   securityClassification?: string
   snippet?: string
+  score?: number
 }
 
 export interface EscalationInfo {
   shouldEscalate: boolean
   reason?: string
+}
+
+export interface OptionalWebSearch {
+  userMessage: string
+  webSearchToken?: string
 }
 
 export interface ChatMessage {
@@ -57,6 +63,8 @@ export interface ChatMessage {
   escalation?: EscalationInfo
   requestId?: string
   actionHints?: string[]
+  /** For Customer role when needsWebConfirmation is false: optional web search button */
+  optionalWebSearch?: OptionalWebSearch
 }
 
 // Feedback Types
@@ -141,8 +149,13 @@ export interface ChatApiRequest {
 
 export interface ApiCitation {
   title?: string
+  /** Alternate field names from Azure API for document title */
+  documentTitle?: string
+  sourceTitle?: string
+  name?: string
   urlOrId: string
   snippet?: string
+  score?: number
 }
 
 export interface ChatApiResponse {
@@ -150,6 +163,8 @@ export interface ChatApiResponse {
   citations?: ApiCitation[]
   needsWebConfirmation?: boolean
   webSearchToken?: string
+  /** When needsWebConfirmation is false, API may return this for optional web search */
+  optionalWebSearchToken?: string
   requestId?: string
   escalation?: EscalationInfo
   actionHints?: string[]
@@ -184,14 +199,12 @@ export interface AdminSettings {
   }
 }
 
-// Admin: User Management
-export type UserRole = 'Admin' | 'Analyst' | 'Viewer'
-
+// Admin: User Management (aligned with AppRole for scenario: Admin, Jane/Agent, Bob/Customer)
 export interface AdminUser {
   id: string
   name: string
   email: string
-  role: UserRole
+  role: AppRole
   group: string
 }
 
