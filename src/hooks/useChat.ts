@@ -161,7 +161,7 @@ export function useChat() {
                   status: escalation?.shouldEscalate ? ('escalated' as const) : status,
                   citations: escalation?.shouldEscalate ? undefined : (citations ? apiCitationsToCitations(citations) : undefined),
                   escalation: escalation?.shouldEscalate ? escalation : undefined,
-                  requestId: escalation?.shouldEscalate ? requestId : undefined,
+                  requestId: requestId ?? undefined,
                   actionHints: actionHints?.length ? actionHints : undefined,
                   optionalWebSearch
                 }
@@ -202,7 +202,7 @@ export function useChat() {
             response.actionHints
           )
         } else if (isPublic && response.needsWebConfirmation && response.webSearchToken) {
-          applySuccess(assistantMessageId, stripDebugBlock(response.answer), response.citations, 'retrieving')
+          applySuccess(assistantMessageId, stripDebugBlock(response.answer), response.citations, 'retrieving', undefined, response.requestId)
           setPendingWebSearchConsent({
             message: content.trim(),
             webSearchToken: response.webSearchToken,
@@ -219,7 +219,7 @@ export function useChat() {
             response.citations,
             'complete',
             undefined,
-            undefined,
+            response.requestId,
             response.actionHints,
             optionalWebSearch
           )
@@ -269,7 +269,7 @@ export function useChat() {
                   status: escalation?.shouldEscalate ? ('escalated' as const) : ('complete' as const),
                   citations: escalation?.shouldEscalate ? undefined : (citations ? apiCitationsToCitations(citations) : msg.citations),
                   escalation: escalation?.shouldEscalate ? escalation : undefined,
-                  requestId: escalation?.shouldEscalate ? requestId : undefined,
+                  requestId: requestId ?? undefined,
                   actionHints: actionHints?.length ? actionHints : msg.actionHints
                 }
               : msg
@@ -313,7 +313,7 @@ export function useChat() {
             messageId
           })
         } else {
-          applySuccess(stripDebugBlock(response.answer), response.citations, undefined, undefined, response.actionHints)
+          applySuccess(stripDebugBlock(response.answer), response.citations, undefined, response.requestId, response.actionHints)
         }
       } catch (error) {
         const err = error as ChatServiceError
@@ -339,7 +339,7 @@ export function useChat() {
                 messageId
               })
             } else {
-              applySuccess(stripDebugBlock(response.answer), response.citations, undefined, undefined, response.actionHints)
+              applySuccess(stripDebugBlock(response.answer), response.citations, undefined, response.requestId, response.actionHints)
             }
           } catch (retryErr) {
             const retry = retryErr as ChatServiceError
@@ -402,6 +402,7 @@ export function useChat() {
                       ...msg,
                       content: stripDebugBlock(response.answer),
                       citations: response.citations ? apiCitationsToCitations(response.citations) : msg.citations,
+                      requestId: response.requestId ?? undefined,
                       actionHints: response.actionHints?.length ? response.actionHints : msg.actionHints,
                       optionalWebSearch: undefined
                     }

@@ -37,6 +37,9 @@ export const APP_VERSION = _env?.VITE_APP_VERSION ?? 'v2.4.1'
 /** When false or unset, hide debug UI (e.g. brown area with Azure response attributes). Set VITE_SHOW_DEBUG=true for development. */
 export const SHOW_DEBUG_UI = _env?.VITE_SHOW_DEBUG === 'true'
 
+/** Key for X-Debug-Key header when fetching /api/debug/{requestId}. From backend Azure App Settings. */
+export const DEBUG_VIEW_KEY = _env?.VITE_DEBUG_VIEW_KEY ?? 'dev-only-123'
+
 export const STORAGE_KEYS = {
   CHAT_SESSION: 'fortianswer_chat_session',
   ADMIN_SETTINGS: 'fortianswer_admin_settings',
