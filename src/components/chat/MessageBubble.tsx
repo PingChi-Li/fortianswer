@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { ChatMessage, MessageFeedback, Citation } from '../../types'
 import LoadingSpinner from '../common/LoadingSpinner'
 import FeedbackUI from './FeedbackUI'
@@ -11,7 +12,7 @@ interface MessageBubbleProps {
   onFeedback?: (feedback: MessageFeedback) => void
   onCitationClick?: (citation: Citation) => void
   isPublic?: boolean
-  onOptionalWebSearch?: (messageId: string, userMessage: string, webSearchToken?: string) => void
+  onOptionalWebSearch?: (messageId: string, userMessage: string, webSearchToken?: string, requestType?: import('../../types').RequestType) => void
 }
 
 function renderContentWithCitations(
@@ -192,6 +193,30 @@ export default function MessageBubble({ message, onFeedback, onCitationClick, is
                 {message.escalation.reason}
               </p>
             )}
+            {message.content && (
+              <div className="mb-3">
+                {renderContentWithCitations(message.content, message.citations, onCitationClick)}
+              </div>
+            )}
+            {message.ticketId && (
+              <div className="mt-3 p-3 rounded-lg border border-amber-500/50 bg-amber-50 dark:bg-amber-900/20">
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-1">
+                  Your request has been escalated
+                </p>
+                <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                  Ticket ID: {message.ticketId}
+                </p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                  An authorized responder will follow up with you.
+                </p>
+                <Link
+                  to="/tickets"
+                  className="inline-block px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                >
+                  View Ticket
+                </Link>
+              </div>
+            )}
             {showDebugButton && (
               <div className="mt-2">
                 <DebugButton requestId={message.requestId!} />
@@ -244,6 +269,25 @@ export default function MessageBubble({ message, onFeedback, onCitationClick, is
             {message.citations && message.citations.length > 0 && (
               <CitationsPanel citations={message.citations} />
             )}
+            {message.ticketId && isComplete && (
+              <div className="mt-3 p-3 rounded-lg border border-amber-500/50 bg-amber-50 dark:bg-amber-900/20">
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-1">
+                  Your request has been escalated
+                </p>
+                <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                  Ticket ID: {message.ticketId}
+                </p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                  An authorized responder will follow up with you.
+                </p>
+                <Link
+                  to="/tickets"
+                  className="inline-block px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                >
+                  View Ticket
+                </Link>
+              </div>
+            )}
             {isPublic && isComplete && message.optionalWebSearch?.webSearchToken && onOptionalWebSearch && (
               <div className="mt-2">
                 <button
@@ -252,7 +296,8 @@ export default function MessageBubble({ message, onFeedback, onCitationClick, is
                     onOptionalWebSearch(
                       message.id,
                       message.optionalWebSearch!.userMessage,
-                      message.optionalWebSearch!.webSearchToken
+                      message.optionalWebSearch!.webSearchToken,
+                      message.requestType
                     )
                   }
                   className="px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 font-medium"

@@ -15,7 +15,7 @@ interface ChatWidgetProps {
   onOptionalWebSearch?: (messageId: string, userMessage: string, webSearchToken?: string) => void
 }
 
-const SUGGESTED_PROMPTS: Record<RequestType, string[]> = {
+const SUGGESTED_PROMPTS: Partial<Record<RequestType, string[]>> = {
   phishing: [
     'How do I identify a phishing email?',
     'What should I do if I clicked a suspicious link?',
@@ -40,6 +40,25 @@ const SUGGESTED_PROMPTS: Record<RequestType, string[]> = {
     'What does this endpoint alert mean?',
     'How do I resolve an endpoint security alert?',
     'Is this endpoint alert critical?'
+  ],
+  password_reset: [
+    'How do I reset my password?',
+    'I forgot my password',
+    'Password reset not working'
+  ],
+  account_lockout: [
+    'My account is locked',
+    'How do I unlock my account?',
+    'Account lockout after failed attempts'
+  ],
+  severity: [
+    'We have a confirmed breach',
+    'Active incident detected',
+    'What is the escalation path?'
+  ],
+  general: [
+    'I need help with a security issue',
+    'General question about security'
   ]
 }
 
@@ -72,7 +91,7 @@ export default function ChatWidget({
     setInput(prompt)
   }
 
-  const suggestedPrompts = requestType ? SUGGESTED_PROMPTS[requestType] : []
+  const suggestedPrompts = requestType ? (SUGGESTED_PROMPTS[requestType] ?? []) : []
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-900 rounded-lg shadow-lg">

@@ -25,6 +25,26 @@ export const REQUEST_TYPES: { value: RequestType; label: string; description: st
     value: 'endpoint_alert',
     label: 'Endpoint Alert',
     description: 'Review and respond to endpoint security alerts and notifications'
+  },
+  {
+    value: 'password_reset',
+    label: 'Password Reset',
+    description: 'Get help with password reset and account recovery'
+  },
+  {
+    value: 'account_lockout',
+    label: 'Account Lockout',
+    description: 'Resolve account lockout and access restoration'
+  },
+  {
+    value: 'severity',
+    label: 'Active Incident / Severity',
+    description: 'Report and escalate active security incidents'
+  },
+  {
+    value: 'general',
+    label: 'General / Other',
+    description: 'General questions and other support requests'
   }
 ]
 
@@ -48,5 +68,6 @@ export const STORAGE_KEYS = {
   RECENT_ACTIVITY: 'fortianswer_recent_activity',
   RAG_CONFIG: 'fortianswer_rag_config',
   ROLE: 'fortianswer_role',
-  AUTH_SESSION: 'fortianswer_auth'
+  AUTH_SESSION: 'fortianswer_auth',
+  CONVERSATION_CACHE: 'fortianswer_conversation_cache'
 }

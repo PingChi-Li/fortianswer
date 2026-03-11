@@ -9,13 +9,41 @@ export const ROLE_TO_DATA_BOUNDARY: Record<AppRole, DataBoundary> = {
   Admin: 'Confidential'
 }
 
-// Request Types
-export type RequestType = 
+// Request Types (UI selection)
+export type RequestType =
   | 'phishing'
   | 'suspicious_login'
   | 'vpn'
   | 'mfa'
   | 'endpoint_alert'
+  | 'password_reset'
+  | 'account_lockout'
+  | 'severity'
+  | 'general'
+
+// Issue Types (backend API format)
+export type IssueType =
+  | 'VPN'
+  | 'MFA'
+  | 'PasswordReset'
+  | 'Phishing'
+  | 'AccountLockout'
+  | 'EndpointAlert'
+  | 'SuspiciousLogin'
+  | 'Severity'
+  | 'General'
+
+export const REQUEST_TYPE_TO_ISSUE_TYPE: Record<RequestType, IssueType> = {
+  phishing: 'Phishing',
+  suspicious_login: 'SuspiciousLogin',
+  vpn: 'VPN',
+  mfa: 'MFA',
+  endpoint_alert: 'EndpointAlert',
+  password_reset: 'PasswordReset',
+  account_lockout: 'AccountLockout',
+  severity: 'Severity',
+  general: 'General'
+}
 
 // Message Types
 export type MessageRole = 'user' | 'assistant'
@@ -62,6 +90,8 @@ export interface ChatMessage {
   /** For escalated messages */
   escalation?: EscalationInfo
   requestId?: string
+  /** When next.action === "escalate", ticket was auto-created */
+  ticketId?: string
   actionHints?: string[]
   /** For Customer role when needsWebConfirmation is false: optional web search button */
   optionalWebSearch?: OptionalWebSearch
@@ -125,7 +155,7 @@ export interface KnowledgeItem {
   versionHistory?: VersionHistoryEntry[]
 }
 
-// Ticket Types
+// Ticket Types (legacy UI)
 export interface Ticket {
   id: string
   title: string
@@ -137,10 +167,40 @@ export interface Ticket {
   updatedAt: Date
 }
 
+// API Conversation (backend format)
+export interface ApiConversation {
+  requestId: string
+  conversationId: string
+  username: string
+  outcome: 'answered' | 'escalated' | 'needs_web_confirmation' | 'error'
+  issueType: string
+  ticketId: string | null
+  createdAtUtc: string
+}
+
+// API Ticket (backend format)
+export interface ApiTicket {
+  ticketId: string
+  conversationId?: string | null
+  status: string
+  priority: string
+  issueType: string
+  dataBoundary: string
+  createdByUser: string
+  assignedTo?: string | null
+  summary: string
+  escalationReason?: string
+  source: 'manual' | 'auto'
+  createdUtc: string
+  updatedUtc: string
+}
+
 // Azure Chat API Types
 export interface ChatApiRequest {
   message: string
-  issueType?: string
+  issueType?: IssueType | string
+  userRole?: AppRole
+  username?: string
   dataBoundary: DataBoundary
   conversationId?: string
   confirmWebSearch?: boolean
@@ -158,6 +218,11 @@ export interface ApiCitation {
   score?: number
 }
 
+export interface ChatNextAction {
+  action: 'none' | 'escalate' | 'suggest_escalate'
+  ticketId?: string
+}
+
 export interface ChatApiResponse {
   answer: string
   citations?: ApiCitation[]
@@ -166,6 +231,7 @@ export interface ChatApiResponse {
   /** When needsWebConfirmation is false, API may return this for optional web search */
   optionalWebSearchToken?: string
   requestId?: string
+  next?: ChatNextAction
   escalation?: EscalationInfo
   actionHints?: string[]
 }

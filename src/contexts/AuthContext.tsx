@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
 import type { AppRole } from '../types'
 import { STORAGE_KEYS } from '../utils/constants'
+import * as authService from '../services/authService'
 
 interface AuthUser {
   username: string
@@ -11,7 +12,8 @@ interface AuthContextValue {
   user: AuthUser | null
   isAuthenticated: boolean
   role: AppRole | null
-  login: (username: string, password: string, role: AppRole) => void
+  login: (username: string, password: string) => Promise<void>
+  register: (payload: authService.RegisterPayload) => Promise<void>
   logout: () => void
 }
 
@@ -34,10 +36,19 @@ function getStoredAuthSession(): AuthUser | null {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => getStoredAuthSession())
 
-  const login = useCallback((username: string, _password: string, role: AppRole) => {
-    const session = { username, role }
+  const login = useCallback(async (username: string, password: string) => {
+    const res = await authService.login(username, password)
+    const session = { username: res.username, role: res.role }
     localStorage.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(session))
-    localStorage.setItem(STORAGE_KEYS.ROLE, role)
+    localStorage.setItem(STORAGE_KEYS.ROLE, res.role)
+    setUser(session)
+  }, [])
+
+  const register = useCallback(async (payload: authService.RegisterPayload) => {
+    await authService.register(payload)
+    const session = { username: payload.username, role: (payload.role ?? 'Customer') as AppRole }
+    localStorage.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(session))
+    localStorage.setItem(STORAGE_KEYS.ROLE, session.role)
     setUser(session)
   }, [])
 
@@ -58,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: user !== null,
     role: user?.role ?? null,
     login,
+    register,
     logout
   }
 

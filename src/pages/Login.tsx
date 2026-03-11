@@ -1,13 +1,6 @@
 import { useState, FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import type { AppRole } from '../types'
-
-const HARDCODED_ACCOUNTS: Record<string, { password: string; role: AppRole }> = {
-  Jane: { password: '12345', role: 'Agent' },
-  Bob: { password: '12345', role: 'Customer' },
-  Admin: { password: '12345', role: 'Admin' }
-}
 
 export default function Login() {
   const navigate = useNavigate()
@@ -15,8 +8,9 @@ export default function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
 
@@ -30,14 +24,15 @@ export default function Login() {
       return
     }
 
-    const account = HARDCODED_ACCOUNTS[trimmed]
-    if (!account || account.password !== password) {
-      setError('Invalid username or password')
-      return
+    setLoading(true)
+    try {
+      await login(trimmed, password)
+      navigate('/', { replace: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid username or password')
+    } finally {
+      setLoading(false)
     }
-
-    login(trimmed, password, account.role)
-    navigate('/', { replace: true })
   }
 
   return (
@@ -92,11 +87,19 @@ export default function Login() {
             </p>
             <button
               type="submit"
-              className="w-full px-4 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors"
+              disabled={loading}
+              className="w-full px-4 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Sign In
+              {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
+
+          <p className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
+            Don&apos;t have an account?{' '}
+            <Link to="/register" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+              Register
+            </Link>
+          </p>
         </div>
       </div>
     </div>

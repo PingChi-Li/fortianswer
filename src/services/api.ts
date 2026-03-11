@@ -28,7 +28,7 @@ class ApiService {
     await delay(1500)
     
     // Simulate different responses based on request type
-    const mockResponses: Record<RequestType, { message: string; citations: Citation[] }> = {
+    const mockResponses: Partial<Record<RequestType, { message: string; citations: Citation[] }>> = {
       phishing: {
         message: 'Based on your description, this appears to be a phishing attempt. Here are the key indicators [1]:\n\n1. Suspicious sender email address\n2. Urgent language requesting immediate action\n3. Links to unfamiliar domains\n4. Requests for sensitive information\n\n**Recommended Actions [2]:**\n- Do not click any links\n- Do not provide any personal information\n- Report the email to your security team\n- Delete the email from your inbox',
         citations: [

@@ -4,6 +4,7 @@ import { UserProvider } from './contexts/UserContext'
 import AppLayout from './components/layout/AppLayout'
 import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
+import Register from './pages/Register'
 import Landing from './pages/Landing'
 import Chat from './pages/Chat'
 import Admin from './pages/Admin'
@@ -20,6 +21,7 @@ function App() {
         <UserProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>
                 <Route path="/" element={<Landing />} />
