@@ -1,6 +1,7 @@
 name: Azure Static Web Apps CI/CD
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -22,11 +23,15 @@ jobs:
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_SHOW_DEBUG: "false"
+          VITE_APP_VERSION: ${{ github.sha }}
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PURPLE_SAND_0C9325710 }}
           action: "upload"
-          app_location: "/"
-          app_build_command: "npm run build"
+          app_location: "."
+          app_build_command: "npm ci && npm run build"
           output_location: "dist"
           api_location: ""
           ###### End of Repository/Build Configurations ######

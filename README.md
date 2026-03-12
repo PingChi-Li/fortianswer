@@ -104,6 +104,37 @@ Create a `.env` file in the root directory:
 VITE_API_BASE_URL=http://localhost:3000/api
 ```
 
+For production in Azure Static Web Apps, set `VITE_API_BASE_URL` in GitHub repository secrets so the workflow can build against your Azure Functions endpoint.
+
+## Deploy to Azure Static Web Apps (GitHub Actions)
+
+This repository includes `.github/workflows/azure-static-web-apps-purple-sand-0c9325710.yml` for CI/CD deployment.
+
+### 1) Create required GitHub secrets
+
+In your GitHub repository, add:
+
+- `AZURE_STATIC_WEB_APPS_API_TOKEN_PURPLE_SAND_0C9325710`  
+  Get this from your Azure Static Web App in **Manage deployment token**.
+- `VITE_API_BASE_URL`  
+  Set this to your backend Azure Function base URL, for example:  
+  `https://<your-function-app>.azurewebsites.net`
+
+Optional:
+
+- `VITE_DEBUG_VIEW_KEY` if your backend debug endpoint requires a key.
+
+### 2) Trigger deployment
+
+- Push to `main`, or
+- Run the workflow manually from GitHub Actions (`workflow_dispatch` is enabled).
+
+### 3) Verify runtime integration
+
+- Open the deployed Static Web App URL.
+- Confirm chat/API features call your Azure Function endpoint successfully.
+- If CORS is enforced in Azure Functions, allow your Static Web App domain.
+
 ## Features in Detail
 
 ### Chat Interface
