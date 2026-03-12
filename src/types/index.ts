@@ -231,6 +231,7 @@ export interface ChatApiResponse {
   /** When needsWebConfirmation is false, API may return this for optional web search */
   optionalWebSearchToken?: string
   requestId?: string
+  conversationId?: string
   next?: ChatNextAction
   escalation?: EscalationInfo
   actionHints?: string[]
