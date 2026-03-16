@@ -171,6 +171,10 @@ export default function MessageBubble({ message, onFeedback, onCitationClick, is
   const isEscalated = message.status === 'escalated'
   const isComplete = message.status === 'complete' || (!message.status && !isEscalated)
   const showDebugButton = SHOW_DEBUG_UI && message.requestId && !isUser
+  const slotFilling = !isUser && message.slotFilling?.isActive ? message.slotFilling : undefined
+  const assistantBubbleClasses = slotFilling
+    ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-900 dark:text-blue-100 border border-blue-200 dark:border-blue-700'
+    : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
@@ -178,7 +182,7 @@ export default function MessageBubble({ message, onFeedback, onCitationClick, is
         className={`max-w-3xl rounded-lg px-4 py-3 ${
           isUser
             ? 'bg-blue-600 text-white'
-            : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
+            : assistantBubbleClasses
         }`}
       >
         {isUser ? (
@@ -204,7 +208,7 @@ export default function MessageBubble({ message, onFeedback, onCitationClick, is
                   Your request has been escalated
                 </p>
                 <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
-                  Ticket ID: {message.ticketId}
+                  Ticket created: #{message.ticketId}
                 </p>
                 <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
                   An authorized responder will follow up with you.
@@ -266,6 +270,19 @@ export default function MessageBubble({ message, onFeedback, onCitationClick, is
                 )}
               </div>
             )}
+            {slotFilling && (
+              <div className="mb-3 p-3 rounded-lg border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20">
+                <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">
+                  Guided Intake
+                  {slotFilling.currentStep && slotFilling.totalSteps ? ` · Step ${slotFilling.currentStep}/${slotFilling.totalSteps}` : ''}
+                </p>
+                {slotFilling.hint && (
+                  <p className="text-xs text-blue-700/90 dark:text-blue-200/90">
+                    {slotFilling.hint}
+                  </p>
+                )}
+              </div>
+            )}
             {message.citations && message.citations.length > 0 && (
               <CitationsPanel citations={message.citations} />
             )}
@@ -275,7 +292,7 @@ export default function MessageBubble({ message, onFeedback, onCitationClick, is
                   Your request has been escalated
                 </p>
                 <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
-                  Ticket ID: {message.ticketId}
+                  Ticket created: #{message.ticketId}
                 </p>
                 <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
                   An authorized responder will follow up with you.

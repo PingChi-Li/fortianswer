@@ -85,6 +85,7 @@ export default function Chat() {
   const {
     messages,
     isLoading,
+    slotFillingState,
     pendingWebSearchConsent,
     isPublic,
     sendMessage,
@@ -283,6 +284,7 @@ export default function Chat() {
                     messages={messages}
                     isLoading={isLoading}
                     requestType={selectedRequestType}
+                    slotFillingState={slotFillingState}
                     onSendMessage={handleSendMessage}
                     onFeedback={submitFeedback}
                     onCitationClick={setSelectedCitation}

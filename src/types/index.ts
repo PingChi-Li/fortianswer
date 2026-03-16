@@ -79,6 +79,15 @@ export interface OptionalWebSearch {
   webSearchToken?: string
 }
 
+export interface SlotFillingState {
+  isActive: boolean
+  currentStep?: number
+  totalSteps?: number
+  nextQuestion?: string
+  slotKey?: string
+  hint?: string
+}
+
 export interface ChatMessage {
   id: string
   role: MessageRole
@@ -95,6 +104,8 @@ export interface ChatMessage {
   actionHints?: string[]
   /** For Customer role when needsWebConfirmation is false: optional web search button */
   optionalWebSearch?: OptionalWebSearch
+  /** Guided incident intake metadata for slot filling mode */
+  slotFilling?: SlotFillingState
 }
 
 // Feedback Types
@@ -201,7 +212,7 @@ export interface ChatApiRequest {
   issueType?: IssueType | string
   userRole?: AppRole
   username?: string
-  dataBoundary: DataBoundary
+  dataBoundary?: DataBoundary
   conversationId?: string
   confirmWebSearch?: boolean
   webSearchToken?: string | null
@@ -219,7 +230,7 @@ export interface ApiCitation {
 }
 
 export interface ChatNextAction {
-  action: 'none' | 'escalate' | 'suggest_escalate'
+  action: 'none' | 'escalate' | 'slot_filling' | 'suggest_escalate'
   ticketId?: string
 }
 
@@ -235,6 +246,7 @@ export interface ChatApiResponse {
   next?: ChatNextAction
   escalation?: EscalationInfo
   actionHints?: string[]
+  slotFilling?: SlotFillingState
 }
 
 // API Response Types

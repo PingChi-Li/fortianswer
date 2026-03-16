@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import { ChatMessage, RequestType, MessageFeedback, Citation, ApiCitation, ROLE_TO_DATA_BOUNDARY, REQUEST_TYPE_TO_ISSUE_TYPE, type IssueType } from '../types'
+import { ChatMessage, RequestType, MessageFeedback, Citation, ApiCitation, ROLE_TO_DATA_BOUNDARY, REQUEST_TYPE_TO_ISSUE_TYPE, type IssueType, type SlotFillingState } from '../types'
 import { sendChatRequest, type ChatServiceError } from '../services/chatService'
 import { useSession } from './useSession'
 import { useAuth } from '../contexts/AuthContext'
@@ -64,8 +64,16 @@ export interface PendingWebSearchConsent {
   requestType?: RequestType
 }
 
+function toAssistantContent(answer: string, slotFilling?: SlotFillingState): string {
+  const cleanAnswer = stripDebugBlock(answer)
+  const nextQuestion = slotFilling?.nextQuestion?.trim()
+  if (!nextQuestion) return cleanAnswer
+  if (!cleanAnswer) return nextQuestion
+  return `${cleanAnswer}\n\n${nextQuestion}`
+}
+
 export function useChat() {
-  const { sessionId } = useSession()
+  const { sessionId, clearSession, setConversationId } = useSession()
   const { user, role } = useAuth()
   const correlationIdRef = useRef(`corr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`)
 
@@ -73,6 +81,7 @@ export function useChat() {
   const [isLoading, setIsLoading] = useState(false)
   const [currentRequestType, setCurrentRequestType] = useState<RequestType | null>(null)
   const [pendingWebSearchConsent, setPendingWebSearchConsent] = useState<PendingWebSearchConsent | null>(null)
+  const [slotFillingState, setSlotFillingState] = useState<SlotFillingState | null>(null)
 
   const appRole = role ?? 'Customer'
   const dataBoundary = ROLE_TO_DATA_BOUNDARY[appRole]
@@ -126,6 +135,20 @@ export function useChat() {
     [sessionId, dataBoundary, appRole, username]
   )
 
+  const performFollowUpRequest = useCallback(
+    async (message: string): Promise<Awaited<ReturnType<typeof sendChatRequest>>> => {
+      return sendChatRequest(
+        {
+          message,
+          username: username ?? undefined,
+          conversationId: sessionId ?? undefined
+        },
+        { correlationId: correlationIdRef.current, role: appRole }
+      )
+    },
+    [sessionId, appRole, username]
+  )
+
   const sendMessage = useCallback(
     async (content: string, requestType?: RequestType) => {
       if (!content.trim()) return
@@ -167,7 +190,8 @@ export function useChat() {
         requestId?: string,
         ticketId?: string,
         actionHints?: string[],
-        optionalWebSearch?: { userMessage: string; webSearchToken?: string }
+        optionalWebSearch?: { userMessage: string; webSearchToken?: string },
+        slotFilling?: SlotFillingState
       ) => {
         setMessages((prev) =>
           prev.map((msg) =>
@@ -181,7 +205,8 @@ export function useChat() {
                   requestId: requestId ?? undefined,
                   ticketId: ticketId ?? undefined,
                   actionHints: actionHints?.length ? actionHints : undefined,
-                  optionalWebSearch
+                  optionalWebSearch,
+                  slotFilling: slotFilling?.isActive ? slotFilling : undefined
                 }
               : msg
           )
@@ -202,18 +227,57 @@ export function useChat() {
         )
       }
 
-      const issueType = getIssueType(requestType ?? currentRequestType)
+      const activeRequestType = requestType ?? currentRequestType ?? undefined
+      const issueType = getIssueType(activeRequestType)
+      const isSlotFillingTurn = slotFillingState?.isActive === true
 
       try {
-        const { response } = await performInitialRequest(content.trim(), false, null, issueType)
+        const response = isSlotFillingTurn
+          ? await performFollowUpRequest(content.trim())
+          : (await performInitialRequest(content.trim(), false, null, issueType)).response
+
+        if (response.conversationId) {
+          setConversationId(response.conversationId)
+        }
 
         if (response.requestId) {
           console.debug('[chat] requestId:', response.requestId)
         }
 
         const ticketId = response.next?.action === 'escalate' ? response.next.ticketId : undefined
+        const isSlotFillingResponse = response.next?.action === 'slot_filling' || response.slotFilling?.isActive === true
 
-        if (response.escalation?.shouldEscalate) {
+        if (isSlotFillingResponse) {
+          const slotFilling = response.slotFilling ?? { isActive: true }
+          setSlotFillingState(slotFilling)
+          applySuccess(
+            assistantMessageId,
+            toAssistantContent(response.answer, slotFilling),
+            response.citations,
+            'complete',
+            undefined,
+            response.requestId,
+            undefined,
+            response.actionHints,
+            undefined,
+            slotFilling
+          )
+          if (response.requestId) {
+            saveConversation({
+              requestId: response.requestId,
+              conversationId: response.conversationId ?? sessionId,
+              userMessage: content.trim(),
+              assistantMessage: toAssistantContent(response.answer, slotFilling),
+              citations: response.citations ? apiCitationsToCitations(response.citations) : undefined,
+              outcome: 'slot_filling',
+              issueType,
+              requestType: activeRequestType,
+              createdAtUtc: new Date().toISOString()
+            })
+          }
+        } else if (response.escalation?.shouldEscalate) {
+          setSlotFillingState(null)
+
           applySuccess(
             assistantMessageId,
             stripDebugBlock(response.answer),
@@ -227,28 +291,29 @@ export function useChat() {
           if (response.requestId) {
             saveConversation({
               requestId: response.requestId,
-              conversationId: response.conversationId ?? `conv-${response.requestId.slice(0, 8)}`,
+              conversationId: response.conversationId ?? sessionId,
               userMessage: content.trim(),
               assistantMessage: stripDebugBlock(response.answer),
               ticketId,
               escalation: response.escalation,
               outcome: 'escalated',
               issueType,
-              requestType: requestType ?? currentRequestType ?? undefined,
+              requestType: activeRequestType,
               createdAtUtc: new Date().toISOString()
             })
           }
         } else if (isPublic && response.needsWebConfirmation && response.webSearchToken) {
+          setSlotFillingState(null)
           applySuccess(assistantMessageId, stripDebugBlock(response.answer), response.citations, 'retrieving', undefined, response.requestId, undefined)
           if (response.requestId) {
             saveConversation({
               requestId: response.requestId,
-              conversationId: response.conversationId ?? `conv-${response.requestId.slice(0, 8)}`,
+              conversationId: response.conversationId ?? sessionId,
               userMessage: content.trim(),
               assistantMessage: stripDebugBlock(response.answer),
               outcome: 'needs_web_confirmation',
               issueType,
-              requestType: requestType ?? currentRequestType ?? undefined,
+              requestType: activeRequestType,
               createdAtUtc: new Date().toISOString()
             })
           }
@@ -256,9 +321,10 @@ export function useChat() {
             message: content.trim(),
             webSearchToken: response.webSearchToken,
             messageId: assistantMessageId,
-            requestType: requestType ?? currentRequestType ?? undefined
+            requestType: activeRequestType
           })
         } else {
+          setSlotFillingState(null)
           const optionalWebSearch =
             isPublic && !response.needsWebConfirmation && response.optionalWebSearchToken
               ? { userMessage: content.trim(), webSearchToken: response.optionalWebSearchToken }
@@ -277,14 +343,14 @@ export function useChat() {
           if (response.requestId) {
             saveConversation({
               requestId: response.requestId,
-              conversationId: response.conversationId ?? `conv-${response.requestId.slice(0, 8)}`,
+              conversationId: response.conversationId ?? sessionId,
               userMessage: content.trim(),
               assistantMessage: stripDebugBlock(response.answer),
               citations: response.citations ? apiCitationsToCitations(response.citations) : undefined,
               ticketId,
               outcome: 'answered',
               issueType,
-              requestType: requestType ?? currentRequestType ?? undefined,
+              requestType: activeRequestType,
               createdAtUtc: new Date().toISOString()
             })
           }
@@ -295,7 +361,7 @@ export function useChat() {
         setIsLoading(false)
       }
     },
-    [currentRequestType, performInitialRequest, isPublic, getIssueType]
+    [currentRequestType, performInitialRequest, performFollowUpRequest, isPublic, getIssueType, sessionId, slotFillingState, setConversationId]
   )
 
   const confirmWebSearch = useCallback(
@@ -362,6 +428,9 @@ export function useChat() {
 
       try {
         let response = await performConsentRequest(message, webSearchToken, consentIssueType)
+        if (response.conversationId) {
+          setConversationId(response.conversationId)
+        }
 
         if (response.requestId) {
           console.debug('[chat] requestId (consent):', response.requestId)
@@ -381,7 +450,7 @@ export function useChat() {
           if (response.requestId) {
             saveConversation({
               requestId: response.requestId,
-              conversationId: response.conversationId ?? `conv-${response.requestId.slice(0, 8)}`,
+              conversationId: response.conversationId ?? sessionId,
               userMessage: message,
               assistantMessage: stripDebugBlock(response.answer),
               ticketId,
@@ -404,7 +473,7 @@ export function useChat() {
           if (response.requestId) {
             saveConversation({
               requestId: response.requestId,
-              conversationId: response.conversationId ?? `conv-${response.requestId.slice(0, 8)}`,
+              conversationId: response.conversationId ?? sessionId,
               userMessage: message,
               assistantMessage: stripDebugBlock(response.answer),
               citations: response.citations ? apiCitationsToCitations(response.citations) : undefined,
@@ -422,6 +491,9 @@ export function useChat() {
         if (err.isTokenExpiration) {
           try {
             const { response } = await performInitialRequest(message, false, undefined, consentIssueType)
+            if (response.conversationId) {
+              setConversationId(response.conversationId)
+            }
             if (response.requestId) {
               console.debug('[chat] requestId (retry):', response.requestId)
             }
@@ -447,7 +519,7 @@ export function useChat() {
               if (response.requestId) {
                 saveConversation({
                   requestId: response.requestId,
-                  conversationId: response.conversationId ?? `conv-${response.requestId.slice(0, 8)}`,
+                  conversationId: response.conversationId ?? sessionId,
                   userMessage: message,
                   assistantMessage: stripDebugBlock(response.answer),
                   citations: response.citations ? apiCitationsToCitations(response.citations) : undefined,
@@ -471,7 +543,7 @@ export function useChat() {
         setIsLoading(false)
       }
     },
-    [pendingWebSearchConsent, performConsentRequest, performInitialRequest, getIssueType]
+    [pendingWebSearchConsent, performConsentRequest, performInitialRequest, getIssueType, setConversationId]
   )
 
   const triggerOptionalWebSearch = useCallback(
@@ -489,6 +561,9 @@ export function useChat() {
         const issueType = getIssueType(requestType)
         try {
           const { response } = await performInitialRequest(userMessage, false, null, issueType)
+          if (response.conversationId) {
+            setConversationId(response.conversationId)
+          }
           if (response.requestId) {
             console.debug('[chat] requestId (optional web search):', response.requestId)
           }
@@ -513,7 +588,7 @@ export function useChat() {
             if (response.requestId) {
               saveConversation({
                 requestId: response.requestId,
-                conversationId: response.conversationId ?? `conv-${response.requestId.slice(0, 8)}`,
+                conversationId: response.conversationId ?? sessionId,
                 userMessage: userMessage,
                 assistantMessage: stripDebugBlock(response.answer),
                 ticketId,
@@ -550,7 +625,7 @@ export function useChat() {
             if (response.requestId) {
               saveConversation({
                 requestId: response.requestId,
-                conversationId: response.conversationId ?? `conv-${response.requestId.slice(0, 8)}`,
+                conversationId: response.conversationId ?? sessionId,
                 userMessage: userMessage,
                 assistantMessage: stripDebugBlock(response.answer),
                 citations: response.citations ? apiCitationsToCitations(response.citations) : undefined,
@@ -580,7 +655,7 @@ export function useChat() {
         }
       }
     },
-    [performInitialRequest, getIssueType]
+    [performInitialRequest, getIssueType, setConversationId]
   )
 
   const submitFeedback = useCallback((feedback: MessageFeedback) => {
@@ -594,11 +669,14 @@ export function useChat() {
     setMessages([])
     setCurrentRequestType(null)
     setPendingWebSearchConsent(null)
-  }, [])
+    setSlotFillingState(null)
+    clearSession()
+  }, [clearSession])
 
   const loadHistory = useCallback((messagesToLoad: ChatMessage[]) => {
     setMessages(messagesToLoad)
     setPendingWebSearchConsent(null)
+    setSlotFillingState(null)
     const firstMsg = messagesToLoad[0]
     if (firstMsg?.requestType) {
       setCurrentRequestType(firstMsg.requestType)
@@ -609,6 +687,7 @@ export function useChat() {
     messages,
     isLoading,
     currentRequestType,
+    slotFillingState,
     pendingWebSearchConsent,
     dataBoundary,
     isPublic,
