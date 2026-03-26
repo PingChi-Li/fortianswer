@@ -1,5 +1,5 @@
 import type { AppRole } from '../types'
-import { API_BASE_URL } from '../utils/constants'
+import { apiFetch } from './apiClient'
 
 export interface LoginResponse {
   authenticated: boolean
@@ -16,16 +16,14 @@ export interface RegisterPayload {
   role?: AppRole
 }
 
-function getAuthEndpoint(path: string): string {
-  const base = API_BASE_URL.replace(/\/$/, '')
-  return `${base}/api/auth${path}`
+function getAuthPath(path: string): string {
+  return `/api/auth${path}`
 }
 
 export async function login(username: string, password: string): Promise<LoginResponse> {
-  const url = getAuthEndpoint('/login')
-  const res = await fetch(url, {
+  const url = getAuthPath('/login')
+  const res = await apiFetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
   })
 
@@ -47,10 +45,9 @@ export async function login(username: string, password: string): Promise<LoginRe
 }
 
 export async function register(payload: RegisterPayload): Promise<{ username: string; role: AppRole }> {
-  const url = getAuthEndpoint('/register')
-  const res = await fetch(url, {
+  const url = getAuthPath('/register')
+  const res = await apiFetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   })
 

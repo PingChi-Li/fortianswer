@@ -1,10 +1,9 @@
 import type { ApiConversation } from '../types'
-import { API_BASE_URL } from '../utils/constants'
+import { apiFetch } from './apiClient'
 
 export async function listConversations(username: string): Promise<ApiConversation[]> {
-  const base = API_BASE_URL.replace(/\/$/, '')
-  const url = `${base}/api/conversations?username=${encodeURIComponent(username)}`
-  const res = await fetch(url)
+  const path = `/api/conversations?username=${encodeURIComponent(username)}`
+  const res = await apiFetch(path)
 
   const body = await res.json().catch(() => ({})) as { message?: string; code?: string }
 

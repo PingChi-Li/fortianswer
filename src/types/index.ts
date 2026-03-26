@@ -268,14 +268,7 @@ export interface AdminSettings {
     email: string
     role: string
   }
-  theme: 'light' | 'dark' | 'auto'
-  features: {
-    chat: boolean
-    faq: boolean
-    policy: boolean
-    tickets: boolean
-    escalation: boolean
-  }
+  theme: 'light' | 'dark'
 }
 
 // Admin: User Management (aligned with AppRole for scenario: Admin, Jane/Agent, Bob/Customer)

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ChatMessage, MessageFeedback, Citation } from '../../types'
+import { ChatMessage, MessageFeedback, Citation, REQUEST_TYPE_TO_ISSUE_TYPE } from '../../types'
 import LoadingSpinner from '../common/LoadingSpinner'
 import FeedbackUI from './FeedbackUI'
 import CitationsPanel from './CitationsPanel'
@@ -326,6 +326,13 @@ export default function MessageBubble({ message, onFeedback, onCitationClick, is
             {isComplete && message.content && onFeedback && (
               <FeedbackUI
                 messageId={message.id}
+                requestId={message.requestId}
+                issueType={
+                  message.requestType ? REQUEST_TYPE_TO_ISSUE_TYPE[message.requestType] : undefined
+                }
+                citationUrls={message.citations
+                  ?.map((c) => c.urlOrId || c.id)
+                  .filter((x): x is string => Boolean(x))}
                 onSubmit={onFeedback}
               />
             )}

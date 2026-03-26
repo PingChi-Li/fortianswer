@@ -1,6 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, type FormEvent } from 'react'
 import { AdminSettings, AdminUser, RAGConfig, AuditLogEntry } from '../types'
 import { STORAGE_KEYS } from '../utils/constants'
+import { getHealth, type HealthResponse } from '../services/healthService'
+import {
+  getFeedbackSummary,
+  getFlaggedFeedback,
+  dismissFeedback,
+  type FeedbackSummaryResponse,
+  type FlaggedFeedbackItem
+} from '../services/feedbackService'
+import { listKbDocuments, uploadKbDocument, type KbClassification, type KbDocument } from '../services/kbService'
+import { ApiClientError } from '../services/apiClient'
+import { formatSatisfactionPercent } from '../utils/satisfactionDisplay'
+import { applyTheme, normalizeThemeValue, persistTheme } from '../utils/theme'
 
 const MOCK_USERS: AdminUser[] = [
   { id: '1', name: 'Admin', email: 'admin@company.com', role: 'Admin', group: 'Security-Admins' },
@@ -19,23 +31,140 @@ const DEFAULT_RAG: RAGConfig = {
   temperature: 0.3
 }
 
-type AdminTab = 'users' | 'rag' | 'audit'
+type AdminTab = 'users' | 'rag' | 'audit' | 'feedback' | 'kb'
 
 export default function Admin() {
   const [tab, setTab] = useState<AdminTab>('users')
+  const [health, setHealth] = useState<HealthResponse | null>(null)
+  const [healthError, setHealthError] = useState('')
+
+  const [feedbackSummary, setFeedbackSummary] = useState<FeedbackSummaryResponse | null>(null)
+  const [flaggedItems, setFlaggedItems] = useState<FlaggedFeedbackItem[]>([])
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
+  const [feedbackError, setFeedbackError] = useState('')
+  const [dismissingId, setDismissingId] = useState<string | null>(null)
+
+  const [kbDocs, setKbDocs] = useState<KbDocument[]>([])
+  const [kbTotal, setKbTotal] = useState(0)
+  const [kbClassificationFilter, setKbClassificationFilter] = useState('')
+  const [kbLoading, setKbLoading] = useState(false)
+  /** Background refetch (e.g. after upload) — keeps the table visible */
+  const [kbRefreshing, setKbRefreshing] = useState(false)
+  const [kbError, setKbError] = useState('')
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadClassification, setUploadClassification] = useState<KbClassification>('public')
+  const [uploading, setUploading] = useState(false)
+  const [uploadMessage, setUploadMessage] = useState('')
   const [settings, setSettings] = useState<AdminSettings>({
     profile: { name: 'Admin User', email: 'admin@company.com', role: 'Administrator' },
-    theme: 'auto',
-    features: { chat: true, faq: true, policy: true, tickets: true, escalation: true }
+    theme: 'light'
   })
   const [ragConfig, setRagConfig] = useState<RAGConfig>(DEFAULT_RAG)
   const [auditLog] = useState<AuditLogEntry[]>(MOCK_AUDIT_LOG)
 
   useEffect(() => {
+    getHealth()
+      .then(setHealth)
+      .catch((e) => setHealthError(e instanceof Error ? e.message : 'Health check failed'))
+  }, [])
+
+  const loadFeedback = useCallback(async () => {
+    setFeedbackLoading(true)
+    setFeedbackError('')
+    try {
+      const [sum, flagged] = await Promise.all([getFeedbackSummary(), getFlaggedFeedback()])
+      setFeedbackSummary(sum)
+      setFlaggedItems(flagged.items ?? [])
+    } catch (e) {
+      setFeedbackError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : 'Failed to load feedback')
+    } finally {
+      setFeedbackLoading(false)
+    }
+  }, [])
+
+  const loadKb = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false
+      if (silent) setKbRefreshing(true)
+      else setKbLoading(true)
+      setKbError('')
+      try {
+        const res = await listKbDocuments(
+          'admin',
+          kbClassificationFilter.trim() || undefined
+        )
+        setKbDocs(res.documents ?? [])
+        setKbTotal(res.total ?? 0)
+      } catch (e) {
+        setKbError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : 'Failed to load documents')
+      } finally {
+        if (silent) setKbRefreshing(false)
+        else setKbLoading(false)
+      }
+    },
+    [kbClassificationFilter]
+  )
+
+  useEffect(() => {
+    if (tab === 'feedback') void loadFeedback()
+  }, [tab, loadFeedback])
+
+  useEffect(() => {
+    if (tab === 'kb') void loadKb()
+  }, [tab, loadKb])
+
+  const handleDismiss = async (requestId: string) => {
+    setDismissingId(requestId)
+    setFeedbackError('')
+    try {
+      await dismissFeedback(requestId)
+      setFlaggedItems((prev) => prev.filter((x) => x.requestId !== requestId))
+    } catch (e) {
+      setFeedbackError(e instanceof Error ? e.message : 'Dismiss failed')
+    } finally {
+      setDismissingId(null)
+    }
+  }
+
+  const handleKbUpload = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!uploadFile) {
+      setUploadMessage('Choose a file')
+      return
+    }
+    setUploading(true)
+    setUploadMessage('')
+    try {
+      const res = await uploadKbDocument(uploadFile, uploadClassification)
+      setUploadMessage(res.message ?? 'Uploaded successfully')
+      setUploadFile(null)
+      // Await refetch so the list updates in the same flow (fetch + setState = “partial page” update)
+      await loadKb({ silent: true })
+      // Indexing may lag; one more refresh shortly after often picks up the new document
+      window.setTimeout(() => {
+        void loadKb({ silent: true })
+      }, 2500)
+    } catch (err) {
+      setUploadMessage(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.ADMIN_SETTINGS)
     if (saved) {
       try {
-        setSettings(JSON.parse(saved))
+        const parsed = JSON.parse(saved) as Partial<AdminSettings>
+        setSettings({
+          profile: {
+            name: 'Admin User',
+            email: 'admin@company.com',
+            role: 'Administrator',
+            ...parsed.profile
+          },
+          theme: normalizeThemeValue(parsed.theme)
+        })
       } catch (e) {
         console.error('Failed to load settings', e)
       }
@@ -51,8 +180,13 @@ export default function Admin() {
   }, [])
 
   const handleSaveSettings = () => {
-    localStorage.setItem(STORAGE_KEYS.ADMIN_SETTINGS, JSON.stringify(settings))
-    localStorage.setItem(STORAGE_KEYS.THEME, settings.theme)
+    const payload: AdminSettings = {
+      profile: settings.profile,
+      theme: settings.theme
+    }
+    localStorage.setItem(STORAGE_KEYS.ADMIN_SETTINGS, JSON.stringify(payload))
+    applyTheme(settings.theme)
+    persistTheme(settings.theme)
     alert('Settings saved successfully!')
   }
 
@@ -68,21 +202,16 @@ export default function Admin() {
     })
   }
 
-  const handleThemeChange = (theme: 'light' | 'dark' | 'auto') => {
+  const handleThemeChange = (theme: 'light' | 'dark') => {
     setSettings({ ...settings, theme })
-  }
-
-  const handleFeatureToggle = (feature: keyof AdminSettings['features']) => {
-    setSettings({
-      ...settings,
-      features: { ...settings.features, [feature]: !settings.features[feature] }
-    })
   }
 
   const tabs: { id: AdminTab; label: string }[] = [
     { id: 'users', label: 'User Management' },
     { id: 'rag', label: 'RAG Configuration' },
-    { id: 'audit', label: 'Audit Logs' }
+    { id: 'audit', label: 'Audit Logs' },
+    { id: 'feedback', label: 'Feedback' },
+    { id: 'kb', label: 'Knowledge Base' }
   ]
 
   return (
@@ -91,7 +220,32 @@ export default function Admin() {
         Admin Panel
       </h1>
 
-      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 mb-6">
+      <div className="mb-6 p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+        <h2 className="font-semibold text-gray-900 dark:text-white mb-2">API health</h2>
+        {healthError ? (
+          <p className="text-red-600 dark:text-red-400">{healthError}</p>
+        ) : health ? (
+          <div className="flex flex-wrap gap-4 text-gray-700 dark:text-gray-300">
+            <span>
+              Status:{' '}
+              <span className="font-medium">{health.status ?? '—'}</span>
+            </span>
+            {health.checks && (
+              <span className="text-xs">
+                {Object.entries(health.checks).map(([k, v]) => (
+                  <span key={k} className="mr-3">
+                    {k}: {String(v)}
+                  </span>
+                ))}
+              </span>
+            )}
+          </div>
+        ) : (
+          <p className="text-gray-500">Loading…</p>
+        )}
+      </div>
+
+      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 mb-6 flex-wrap">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -156,8 +310,8 @@ export default function Admin() {
             </div>
             <div className="mt-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Theme</label>
-              <div className="flex gap-4">
-                {(['light', 'dark', 'auto'] as const).map((theme) => (
+              <div className="flex gap-6">
+                {(['light', 'dark'] as const).map((theme) => (
                   <label key={theme} className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
@@ -171,22 +325,9 @@ export default function Admin() {
                   </label>
                 ))}
               </div>
-            </div>
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Feature Flags</label>
-              <div className="flex flex-wrap gap-4">
-                {(Object.keys(settings.features) as (keyof AdminSettings['features'])[]).map((feature) => (
-                  <label key={feature} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={settings.features[feature]}
-                      onChange={() => handleFeatureToggle(feature)}
-                      className="w-4 h-4 rounded"
-                    />
-                    <span className="text-gray-700 dark:text-gray-300 capitalize">{feature.replace('_', ' ')}</span>
-                  </label>
-                ))}
-              </div>
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 max-w-md">
+                Click Save to apply. This controls light or dark appearance for FortiAnswer in this browser.
+              </p>
             </div>
             <button
               onClick={handleSaveSettings}
@@ -267,6 +408,233 @@ export default function Admin() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {tab === 'feedback' && (
+        <div className="space-y-8">
+          {feedbackError && (
+            <div className="p-3 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-sm">
+              {feedbackError}
+            </div>
+          )}
+          {feedbackLoading ? (
+            <p className="text-gray-600 dark:text-gray-400">Loading feedback…</p>
+          ) : (
+            <>
+              {feedbackSummary && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Total ratings</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {feedbackSummary.totalRatings ?? '—'}
+                    </p>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Satisfaction</p>
+                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                      {feedbackSummary.satisfactionRate != null
+                        ? formatSatisfactionPercent(feedbackSummary.satisfactionRate)
+                        : '—'}
+                    </p>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Thumbs up</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{feedbackSummary.totalUp ?? '—'}</p>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Thumbs down</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{feedbackSummary.totalDown ?? '—'}</p>
+                  </div>
+                </div>
+              )}
+
+              {feedbackSummary?.byCitation && feedbackSummary.byCitation.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+                  <h2 className="text-xl font-semibold p-4 text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700">
+                    By citation (document)
+                  </h2>
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-100 dark:bg-gray-700">
+                      <tr>
+                        <th className="text-left px-4 py-3">File</th>
+                        <th className="text-left px-4 py-3">Up</th>
+                        <th className="text-left px-4 py-3">Down</th>
+                        <th className="text-left px-4 py-3">Satisfaction</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
+                      {feedbackSummary.byCitation.map((row) => (
+                        <tr key={row.documentId ?? row.fileName}>
+                          <td className="px-4 py-3 text-gray-900 dark:text-white">{row.fileName}</td>
+                          <td className="px-4 py-3">{row.up}</td>
+                          <td className="px-4 py-3">{row.down}</td>
+                          <td className="px-4 py-3">
+                            {row.satisfactionRate != null
+                              ? formatSatisfactionPercent(row.satisfactionRate)
+                              : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+                <h2 className="text-xl font-semibold p-4 text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700">
+                  Flagged feedback
+                </h2>
+                {flaggedItems.length === 0 ? (
+                  <p className="p-4 text-gray-600 dark:text-gray-400">No flagged items.</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-100 dark:bg-gray-700">
+                      <tr>
+                        <th className="text-left px-4 py-3">Request</th>
+                        <th className="text-left px-4 py-3">User</th>
+                        <th className="text-left px-4 py-3">Issue</th>
+                        <th className="text-left px-4 py-3"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
+                      {flaggedItems.map((row) => (
+                        <tr key={row.requestId}>
+                          <td className="px-4 py-3 font-mono text-xs">{row.requestId}</td>
+                          <td className="px-4 py-3">{row.username}</td>
+                          <td className="px-4 py-3">{row.issueType}</td>
+                          <td className="px-4 py-3">
+                            <button
+                              type="button"
+                              onClick={() => void handleDismiss(row.requestId)}
+                              disabled={dismissingId === row.requestId}
+                              className="text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+                            >
+                              {dismissingId === row.requestId ? '…' : 'Dismiss'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === 'kb' && (
+        <div className="space-y-6">
+          <form
+            onSubmit={handleKbUpload}
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700 max-w-xl"
+          >
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Upload document</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">File</label>
+                <input
+                  type="file"
+                  onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+                  className="block w-full text-sm text-gray-600 dark:text-gray-400"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Classification</label>
+                <select
+                  value={uploadClassification}
+                  onChange={(e) => setUploadClassification(e.target.value as KbClassification)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="public">public</option>
+                  <option value="internal">internal</option>
+                  <option value="confidential">confidential</option>
+                  <option value="restricted">restricted</option>
+                </select>
+              </div>
+              {uploadMessage && (
+                <p className="text-sm text-gray-600 dark:text-gray-400">{uploadMessage}</p>
+              )}
+              <button
+                type="submit"
+                disabled={uploading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {uploading ? 'Uploading…' : 'Upload'}
+              </button>
+            </div>
+          </form>
+
+          <div className="flex flex-wrap gap-3 items-end">
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Filter by classification</label>
+              <input
+                type="text"
+                value={kbClassificationFilter}
+                onChange={(e) => setKbClassificationFilter(e.target.value)}
+                placeholder="e.g. public"
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 dark:text-white text-sm"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadKb({ silent: true })}
+              disabled={kbRefreshing}
+              className="px-3 py-2 text-sm bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
+            >
+              {kbRefreshing ? 'Refreshing…' : 'Refresh list'}
+            </button>
+          </div>
+
+          {kbError && (
+            <div className="p-3 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-sm">
+              {kbError}
+            </div>
+          )}
+
+          {kbLoading ? (
+            <p className="text-gray-600 dark:text-gray-400">Loading documents…</p>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden relative">
+              {kbRefreshing && (
+                <div
+                  className="absolute inset-0 z-10 bg-white/60 dark:bg-gray-900/40 flex items-start justify-end p-3 pointer-events-none"
+                  aria-hidden
+                >
+                  <span className="text-xs text-gray-600 dark:text-gray-300 bg-white/90 dark:bg-gray-800/90 px-2 py-1 rounded shadow">
+                    Updating list…
+                  </span>
+                </div>
+              )}
+              <h2 className="text-xl font-semibold p-4 text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700">
+                Documents ({kbTotal})
+                {kbRefreshing && <span className="sr-only"> — refreshing</span>}
+              </h2>
+              <table className="w-full text-sm">
+                <thead className="bg-gray-100 dark:bg-gray-700">
+                  <tr>
+                    <th className="text-left px-4 py-3">Path</th>
+                    <th className="text-left px-4 py-3">Classification</th>
+                    <th className="text-left px-4 py-3">Chunks</th>
+                    <th className="text-left px-4 py-3">Created</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
+                  {kbDocs.map((d) => (
+                    <tr key={d.path}>
+                      <td className="px-4 py-3 font-mono text-xs break-all">{d.path}</td>
+                      <td className="px-4 py-3">{d.classification}</td>
+                      <td className="px-4 py-3">{d.chunkCount}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                        {d.createdUtc ? new Date(d.createdUtc).toLocaleString() : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -1,4 +1,5 @@
-import { API_BASE_URL, DEBUG_VIEW_KEY } from '../utils/constants'
+import { DEBUG_VIEW_KEY } from '../utils/constants'
+import { apiFetch } from './apiClient'
 
 export interface DebugApiResponse {
   debugJson: unknown
@@ -9,10 +10,9 @@ export interface DebugApiResponse {
  * Requires X-Debug-Key header (dev/internal use only).
  */
 export async function fetchDebugInfo(requestId: string): Promise<DebugApiResponse> {
-  const base = API_BASE_URL.replace(/\/$/, '')
-  const url = `${base}/api/debug/${encodeURIComponent(requestId)}`
+  const path = `/api/debug/${encodeURIComponent(requestId)}`
 
-  const res = await fetch(url, {
+  const res = await apiFetch(path, {
     method: 'GET',
     headers: {
       'X-Debug-Key': DEBUG_VIEW_KEY

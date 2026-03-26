@@ -1,14 +1,13 @@
 import type { AppRole, ChatApiRequest, ChatApiResponse } from '../types'
-import { API_BASE_URL } from '../utils/constants'
+import { apiFetch } from './apiClient'
 
 export interface SendChatOptions {
   correlationId?: string
   role: AppRole
 }
 
-function getChatEndpoint(): string {
-  const base = API_BASE_URL.replace(/\/$/, '')
-  return `${base}/api/chat`
+function getChatPath(): string {
+  return '/api/chat'
 }
 
 export interface ChatServiceError {
@@ -28,16 +27,14 @@ export async function sendChatRequest(
   options: SendChatOptions
 ): Promise<ChatApiResponse> {
   const { correlationId, role } = options
-  const url = getChatEndpoint()
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     'x-user-role': role
   }
   if (correlationId) {
     headers['x-correlation-id'] = correlationId
   }
 
-  const res = await fetch(url, {
+  const res = await apiFetch(getChatPath(), {
     method: 'POST',
     headers,
     body: JSON.stringify(request)

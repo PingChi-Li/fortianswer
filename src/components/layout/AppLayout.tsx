@@ -4,13 +4,6 @@ import { useAuth } from '../../contexts/AuthContext'
 import { STORAGE_KEYS } from '../../utils/constants'
 import Footer from '../common/Footer'
 
-const navItems = [
-  { path: '/', label: 'Dashboard', icon: '🏠' },
-  { path: '/chat', label: 'AI Chat', icon: '💬' },
-  { path: '/knowledge', label: 'Knowledge Base', icon: '📚' },
-  { path: '/tickets', label: 'My Tickets', icon: '🎫' }
-]
-
 export default function AppLayout() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -33,6 +26,13 @@ export default function AppLayout() {
     logout()
     navigate('/login', { replace: true })
   }
+
+  const navItems = [
+    { path: '/', label: 'Dashboard', icon: '🏠' },
+    { path: '/chat', label: 'AI Chat', icon: '💬' },
+    { path: '/knowledge', label: 'Knowledge Base', icon: '📚' },
+    { path: '/tickets', label: role === 'Customer' ? 'My Tickets' : 'Tickets', icon: '🎫' }
+  ]
 
   return (
     <div className="min-h-screen flex flex-col">

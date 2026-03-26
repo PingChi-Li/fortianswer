@@ -1,5 +1,9 @@
 import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
 import { useUser } from '../contexts/UserContext'
+import { useAuth } from '../contexts/AuthContext'
+import { listTicketsAll, listTicketsByUser } from '../services/ticketService'
+import type { ApiTicket } from '../types'
 
 const SECURITY_STATUS = 'Normal'
 
@@ -8,8 +12,6 @@ const MOCK_RECENT_ACTIVITY = [
   { id: '2', type: 'policy' as const, title: 'Phishing Prevention Policy', link: '/knowledge', at: new Date(Date.now() - 7200000) },
   { id: '3', type: 'chat' as const, title: 'VPN connection help', link: '/chat', at: new Date(Date.now() - 86400000) }
 ]
-
-const MOCK_TICKET_SUMMARY = { open: 2, critical: 0 }
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -20,8 +22,43 @@ function getGreeting() {
 
 export default function Landing() {
   const { user } = useUser()
+  const { role, user: authUser } = useAuth()
   const recent = MOCK_RECENT_ACTIVITY
-  const tickets = MOCK_TICKET_SUMMARY
+  const [tickets, setTickets] = useState<ApiTicket[]>([])
+  const [ticketLoading, setTicketLoading] = useState(true)
+
+  useEffect(() => {
+    const username = authUser?.username
+    if (!username) {
+      setTicketLoading(false)
+      setTickets([])
+      return
+    }
+
+    setTicketLoading(true)
+    const load =
+      role === 'Customer'
+        ? listTicketsByUser(username)
+        : listTicketsAll({
+            role: role === 'Admin' ? 'admin' : 'agent',
+            page: 1,
+            pageSize: 500
+          }).then((r) => r.tickets)
+
+    load
+      .then(setTickets)
+      .catch(() => setTickets([]))
+      .finally(() => setTicketLoading(false))
+  }, [authUser?.username, role])
+
+  const ticketSummary = useMemo(() => {
+    const active = tickets.filter((t) => {
+      const ns = (t.status || '').toLowerCase().replace(/[\s_-]/g, '')
+      return ns !== 'closed' && ns !== 'resolved'
+    }).length
+    const critical = tickets.filter((t) => (t.priority || '').toUpperCase() === 'P1').length
+    return { active, critical }
+  }, [tickets])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
@@ -91,11 +128,15 @@ export default function Landing() {
             <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Ticket Summary</h2>
             <div className="flex items-center gap-6">
               <div>
-                <span className="text-3xl font-bold text-blue-600 dark:text-blue-400">{tickets.open}</span>
-                <span className="text-gray-600 dark:text-gray-400 ml-2">Open Tickets</span>
+                <span className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                  {ticketLoading ? '...' : ticketSummary.active}
+                </span>
+                <span className="text-gray-600 dark:text-gray-400 ml-2">Active Tickets</span>
               </div>
               <div>
-                <span className="text-3xl font-bold text-red-600 dark:text-red-400">{tickets.critical}</span>
+                <span className="text-3xl font-bold text-red-600 dark:text-red-400">
+                  {ticketLoading ? '...' : ticketSummary.critical}
+                </span>
                 <span className="text-gray-600 dark:text-gray-400 ml-2">Critical</span>
               </div>
             </div>

@@ -1,8 +1,14 @@
 import { useState } from 'react'
 import { MessageFeedback, FeedbackReasonCategory } from '../../types'
+import { useAuth } from '../../contexts/AuthContext'
+import { submitChatFeedback } from '../../services/feedbackService'
+import { ApiClientError } from '../../services/apiClient'
 
 interface FeedbackUIProps {
   messageId: string
+  requestId?: string
+  issueType?: string
+  citationUrls?: string[]
   onSubmit: (feedback: MessageFeedback) => void
 }
 
@@ -12,35 +18,70 @@ const REASON_OPTIONS: { value: FeedbackReasonCategory; label: string }[] = [
   { value: 'harmful', label: 'Harmful' }
 ]
 
-export default function FeedbackUI({ messageId, onSubmit }: FeedbackUIProps) {
+export default function FeedbackUI({
+  messageId,
+  requestId,
+  issueType,
+  citationUrls,
+  onSubmit
+}: FeedbackUIProps) {
+  const { user } = useAuth()
   const [helpful, setHelpful] = useState<boolean | null>(null)
   const [solved, setSolved] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [showReason, setShowReason] = useState(false)
   const [reasonCategory, setReasonCategory] = useState<FeedbackReasonCategory | ''>('')
   const [reasonText, setReasonText] = useState('')
+  const [submitError, setSubmitError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const handleThumbsDown = () => {
     setHelpful(false)
     setShowReason(true)
   }
 
-  const handleSubmit = () => {
-    if (helpful !== null) {
-      const feedback: MessageFeedback = {
-        messageId,
-        helpful,
-        solved,
-        ...(helpful === false && (reasonCategory || reasonText)
-          ? {
-              reasonCategory: reasonCategory || undefined,
-              reasonForFailure: reasonText || undefined
-            }
-          : {})
-      }
-      onSubmit(feedback)
-      setSubmitted(true)
+  const handleSubmit = async () => {
+    if (helpful === null) return
+    setSubmitError('')
+    const feedback: MessageFeedback = {
+      messageId,
+      helpful,
+      solved,
+      ...(helpful === false && (reasonCategory || reasonText)
+        ? {
+            reasonCategory: reasonCategory || undefined,
+            reasonForFailure: reasonText || undefined
+          }
+        : {})
     }
+
+    const username = user?.username
+    if (requestId && username) {
+      setSubmitting(true)
+      try {
+        await submitChatFeedback({
+          requestId,
+          username,
+          rating: helpful ? 'up' : 'down',
+          issueType,
+          citations: citationUrls?.length ? citationUrls : undefined
+        })
+      } catch (err) {
+        const msg =
+          err instanceof ApiClientError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'Failed to send feedback'
+        setSubmitError(msg)
+        setSubmitting(false)
+        return
+      }
+      setSubmitting(false)
+    }
+
+    onSubmit(feedback)
+    setSubmitted(true)
   }
 
   if (submitted) {
@@ -55,6 +96,9 @@ export default function FeedbackUI({ messageId, onSubmit }: FeedbackUIProps) {
 
   return (
     <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600 space-y-3">
+      {submitError && (
+        <p className="text-sm text-red-600 dark:text-red-400">{submitError}</p>
+      )}
       <div className="flex items-center gap-4 flex-wrap">
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-600 dark:text-gray-400">Helpful?</span>
@@ -92,10 +136,11 @@ export default function FeedbackUI({ messageId, onSubmit }: FeedbackUIProps) {
         </label>
         {helpful !== null && (
           <button
-            onClick={handleSubmit}
-            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+            onClick={() => void handleSubmit()}
+            disabled={submitting}
+            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            Submit
+            {submitting ? 'Sending…' : 'Submit'}
           </button>
         )}
       </div>

@@ -101,15 +101,27 @@ export default function Chat() {
     (c: ApiConversation) => {
       setHistoryLoadError(null)
       setForceShowChat(true)
+      setSelectedHistoryRequestId(c.requestId)
       const cached = getConversation(c.requestId)
       if (!cached) {
         setHistoryLoadError('Conversation details not available (e.g. from another session or device).')
+        loadHistory([
+          {
+            id: `msg_${c.requestId}_placeholder`,
+            role: 'assistant',
+            content: `Summary only: ${formatIssueTypeTitle(c.issueType, c.outcome)}.\n\nDetailed message content is unavailable in this browser session.`,
+            status: c.outcome === 'escalated' ? 'escalated' : 'complete',
+            requestId: c.requestId,
+            ticketId: c.ticketId ?? undefined,
+            timestamp: new Date(c.createdAtUtc)
+          }
+        ])
+        setSelectedRequestType(null)
         return
       }
       const msgs = cachedToMessages(cached)
       loadHistory(msgs)
       setSelectedRequestType((cached.requestType as RequestType) ?? null)
-      setSelectedHistoryRequestId(c.requestId)
     },
     [loadHistory]
   )
