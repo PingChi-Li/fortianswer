@@ -1,167 +1,102 @@
-# FortiAnswer - AI Security Chatbot Frontend
+# FortiAnswer — AI Security Chatbot (Frontend)
 
-A modern React-based frontend application for an AI-powered security chatbot that helps users with security-related questions and issues.
+React + TypeScript SPA for an AI-assisted security assistant: chat against an Azure Functions backend, tickets, optional admin tools (feedback, knowledge base), and role-based UX (Customer / Agent / Admin).
 
 ## Features
 
-- **AI Chat Assistant**: Interactive chat interface with request type selection (Phishing, Suspicious Login, VPN, MFA, Endpoint Alert)
-- **FAQ Management**: Create, update, delete, publish, and suspend FAQs
-- **Policy Management**: Manage security policies with full CRUD operations
-- **Admin Panel**: Configure user profile, theme settings, and feature flags
-- **Support Tickets**: Create tickets and escalate issues to human agents
-- **Responsive Design**: Mobile-first design with Tailwind CSS
-- **Dark Mode Support**: Built-in dark mode with theme persistence
+- **AI chat** — Request types (phishing, VPN, MFA, etc.), streaming-style status, citations, optional web search / escalation, thumbs feedback sent to `POST /api/feedback`.
+- **Central API client** — All calls go through [`src/services/apiClient.ts`](src/services/apiClient.ts) with `x-api-key` (Sprint 3). Handles **429** rate limits with a user-facing message.
+- **Tickets** — Customers: `GET /api/tickets?username=…`. Agents/Admins: paginated `GET /api/tickets/all`, filters, **Assign to me**, status updates via `PATCH /api/tickets/{id}` (**Open** / **InProgress** / **Closed**).
+- **Admin panel** — API health strip, **Feedback** (summary, flagged, dismiss), **Knowledge Base** (list from `GET /api/kb/documents`, upload `POST /api/documents/upload`, **delete** `DELETE /api/documents/delete`), RAG config (local), mock audit table. **Theme**: Light / Dark persisted in the browser ([`src/utils/theme.ts`](src/utils/theme.ts)).
+- **Landing** — Ticket summary counts (API-backed for all roles where applicable).
+- **Public Knowledge page** (`/knowledge`) — Search/filter UI over **mock** items for demos; **live** KB documents are managed under **Admin → Knowledge Base**.
 
-## Tech Stack
+## Tech stack
 
-- **React 18** - UI library
-- **TypeScript** - Type safety
-- **Vite** - Build tool and dev server
-- **Tailwind CSS** - Styling
-- **React Router v6** - Routing
-- **React Hooks** - State management
+- React 18, TypeScript, Vite, Tailwind CSS, React Router v6
 
-## Project Structure
+## Project structure (high level)
 
 ```
 src/
-├── components/
-│   ├── chat/          # Chat-related components
-│   ├── common/        # Shared components (Header, Footer, etc.)
-│   └── admin/         # Admin-specific components
-├── pages/             # Page components
-├── hooks/             # Custom React hooks
-├── services/          # API service layer
-├── types/             # TypeScript type definitions
-└── utils/             # Utility functions and constants
+├── components/     # layout, chat, common
+├── contexts/       # auth, user
+├── hooks/          # useChat, useSession, etc.
+├── pages/          # route pages
+├── services/       # apiClient, chatService, ticketService, feedbackService, kbService, …
+├── types/
+└── utils/          # constants, theme, satisfactionDisplay, …
 ```
 
-## Getting Started
+## Prerequisites
 
-### Prerequisites
+- Node.js 18+ and npm
 
-- Node.js 18+ and npm (or yarn/pnpm)
+## Getting started
 
-### Installation
-
-1. Install dependencies:
 ```bash
 npm install
-```
-
-2. Start the development server:
-```bash
 npm run dev
 ```
 
-3. Open your browser and navigate to `http://localhost:5173`
+Open `http://localhost:5173`.
 
-### Build for Production
+### Environment variables
+
+Copy `.env.example` to `.env` and set:
+
+| Variable | Purpose |
+|----------|---------|
+| `VITE_API_BASE_URL` | Azure Function App base URL (no trailing slash). |
+| `VITE_API_KEY` | **Required** for Sprint 3 — sent as `x-api-key` on every request. |
+
+Optional: `VITE_SHOW_DEBUG`, `VITE_DEBUG_VIEW_KEY` (debug panel / debug API).
+
+See [`.env.example`](.env.example) for comments.
+
+### Build
 
 ```bash
 npm run build
+npm run preview   # optional local preview of dist/
 ```
 
-The built files will be in the `dist` directory.
+## Routes
 
-### Preview Production Build
+| Path | Notes |
+|------|--------|
+| `/` | Dashboard |
+| `/chat` | AI chat |
+| `/knowledge` | Demo KB browser (mock list) |
+| `/faq`, `/policy` | Redirect to `/knowledge` with query |
+| `/tickets` | Tickets (behavior varies by role) |
+| `/admin` | Admin tools (tabs: users, RAG, audit, feedback, KB) |
+| `/create-ticket`, `/contact-support`, `/escalate` | Support flows |
 
-```bash
-npm run preview
-```
+## API integration
 
-## Available Scripts
+The app talks to **real** Azure Functions endpoints via [`apiClient`](src/services/apiClient.ts):
 
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint
+- **Chat / conversations / debug** — `chatService`, `conversationService`, `debugService`
+- **Auth** — `authService`
+- **Tickets** — `ticketService` (`listTicketsByUser`, `listTicketsAll`, `patchTicket`, …)
+- **Feedback** — `feedbackService`
+- **KB** — `kbService` (`listKbDocuments`, `uploadKbDocument`, `deleteKbDocument`)
+- **Health** — `healthService`
 
-## Pages
+Legacy mock demos may still exist under `src/services/api.ts` for local experiments; production flows use the services above.
 
-- `/` - Landing page
-- `/chat` - Chat interface with request type selection
-- `/faq` - FAQ management
-- `/policy` - Security policy management
-- `/admin` - Admin settings and configuration
-- `/create-ticket` - Create support ticket
-- `/contact-support` - Contact support form
-- `/escalate` - Escalate issue to human agents
+## Deploy (Azure Static Web Apps)
 
-## API Integration
+If your repo includes a GitHub Actions workflow for Azure Static Web Apps:
 
-The application includes a mock API service layer in `src/services/api.ts`. To connect to a real backend:
+1. Configure repository secrets (e.g. deployment token from Azure).
+2. Set build-time env (e.g. `VITE_API_BASE_URL`, `VITE_API_KEY`) in GitHub Actions secrets / workflow `env` so the production build embeds the correct API URL and key.
+3. Ensure CORS on the Function App allows your Static Web App origin.
 
-1. Update `API_BASE_URL` in `src/utils/constants.ts`
-2. Replace mock implementations in `src/services/api.ts` with actual API calls
-3. Update environment variables as needed
+## Browser support
 
-## Environment Variables
-
-Create a `.env` file in the root directory:
-
-```
-VITE_API_BASE_URL=http://localhost:3000/api
-```
-
-For production in Azure Static Web Apps, set `VITE_API_BASE_URL` in GitHub repository secrets so the workflow can build against your Azure Functions endpoint.
-
-## Deploy to Azure Static Web Apps (GitHub Actions)
-
-This repository includes `.github/workflows/azure-static-web-apps-purple-sand-0c9325710.yml` for CI/CD deployment.
-
-### 1) Create required GitHub secrets
-
-In your GitHub repository, add:
-
-- `AZURE_STATIC_WEB_APPS_API_TOKEN_PURPLE_SAND_0C9325710`  
-  Get this from your Azure Static Web App in **Manage deployment token**.
-- `VITE_API_BASE_URL`  
-  Set this to your backend Azure Function base URL, for example:  
-  `https://<your-function-app>.azurewebsites.net`
-
-Optional:
-
-- `VITE_DEBUG_VIEW_KEY` if your backend debug endpoint requires a key.
-
-### 2) Trigger deployment
-
-- Push to `main`, or
-- Run the workflow manually from GitHub Actions (`workflow_dispatch` is enabled).
-
-### 3) Verify runtime integration
-
-- Open the deployed Static Web App URL.
-- Confirm chat/API features call your Azure Function endpoint successfully.
-- If CORS is enforced in Azure Functions, allow your Static Web App domain.
-
-## Features in Detail
-
-### Chat Interface
-- Request type selection (5 types: Phishing, Suspicious Login, VPN, MFA, Endpoint Alert)
-- Real-time message display with status indicators
-- Citation rendering with source links
-- Suggested prompts based on request type
-- Feedback system (thumbs up/down + "Solved?" checkbox)
-
-### FAQ & Policy Management
-- Full CRUD operations
-- Publish/Suspend functionality
-- Category organization
-- Rich text support
-
-### Admin Panel
-- User profile configuration
-- Theme selection (Light/Dark/Auto)
-- Feature flags for enabling/disabling features
-- Settings persistence in localStorage
-
-## Browser Support
-
-- Chrome (latest)
-- Firefox (latest)
-- Safari (latest)
-- Edge (latest)
+Current evergreen browsers (Chrome, Firefox, Safari, Edge).
 
 ## License
 

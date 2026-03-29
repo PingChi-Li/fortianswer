@@ -138,3 +138,9 @@ export async function patchTicket(
 export async function updateTicketStatus(ticketId: string, status: string, role: TicketApiRole = 'agent'): Promise<ApiTicket> {
   return patchTicket(ticketId, role, { status })
 }
+
+/** Admin: remove ticket (backend must support DELETE). */
+export async function deleteTicket(ticketId: string, role: TicketApiRole): Promise<void> {
+  const path = `/api/tickets/${encodeURIComponent(ticketId)}?role=${role}`
+  await apiFetchJson<unknown>(path, { method: 'DELETE' })
+}

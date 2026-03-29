@@ -45,3 +45,18 @@ export async function uploadKbDocument(file: File, classification: KbClassificat
 
   return body as UploadDocumentResponse
 }
+
+/** Sprint 3: removes blob and search index chunks in one call */
+export interface DeleteDocumentResponse {
+  ok: boolean
+  path: string
+  blobDeleted: boolean
+  chunksDeleted: number
+}
+
+export async function deleteKbDocument(documentPath: string): Promise<DeleteDocumentResponse> {
+  const q = new URLSearchParams({ role: 'admin', path: documentPath })
+  return apiFetchJson<DeleteDocumentResponse>(`/api/documents/delete?${q.toString()}`, {
+    method: 'DELETE'
+  })
+}

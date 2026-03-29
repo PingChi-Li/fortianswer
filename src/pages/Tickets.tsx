@@ -6,6 +6,7 @@ import {
   listTicketsAll,
   listTicketsByUser,
   patchTicket,
+  deleteTicket,
   type TicketApiRole
 } from '../services/ticketService'
 import { ApiClientError } from '../services/apiClient'
@@ -34,11 +35,11 @@ function formatDate(utc: string): string {
   }
 }
 
-/** Short date for list column (e.g. 3/19); full datetime stays in details panel */
+/** Short date for list column: M/D (e.g. 3/18), no leading zeros; full datetime in details panel */
 function formatCreatedShort(utc: string): string {
   try {
     const d = new Date(utc)
-    return d.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })
+    return `${d.getMonth() + 1}/${d.getDate()}`
   } catch {
     return utc
   }
@@ -74,6 +75,7 @@ export default function Tickets() {
   const [selectedTicket, setSelectedTicket] = useState<ApiTicket | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [updatingTicketId, setUpdatingTicketId] = useState<string | null>(null)
+  const [deletingTicketId, setDeletingTicketId] = useState<string | null>(null)
   /** Draft status in UI until user confirms Save (Agent/Admin) */
   const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
@@ -220,6 +222,33 @@ export default function Tickets() {
       delete next[ticketId]
       return next
     })
+  }
+
+  const handleDeleteTicket = async (ticketId: string) => {
+    if (role !== 'Admin') return
+    if (
+      !window.confirm(
+        'Permanently delete this ticket? This cannot be undone.\n\n' + ticketId
+      )
+    ) {
+      return
+    }
+    setError('')
+    setDeletingTicketId(ticketId)
+    try {
+      await deleteTicket(ticketId, ticketApiRole)
+      setStatusDrafts((prev) => {
+        const next = { ...prev }
+        delete next[ticketId]
+        return next
+      })
+      setSelectedTicket((prev) => (prev?.ticketId === ticketId ? null : prev))
+      await loadList()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete ticket')
+    } finally {
+      setDeletingTicketId(null)
+    }
   }
 
   const handleAssignToMe = async (ticketId: string) => {
@@ -418,10 +447,20 @@ export default function Tickets() {
                               <button
                                 type="button"
                                 onClick={() => handleAssignToMe(t.ticketId)}
-                                disabled={updatingTicketId === t.ticketId}
+                                disabled={updatingTicketId === t.ticketId || deletingTicketId === t.ticketId}
                                 className="text-xs text-amber-700 dark:text-amber-400 hover:underline disabled:opacity-50 whitespace-nowrap"
                               >
                                 Assign to me
+                              </button>
+                            )}
+                            {role === 'Admin' && (
+                              <button
+                                type="button"
+                                onClick={() => void handleDeleteTicket(t.ticketId)}
+                                disabled={deletingTicketId === t.ticketId || updatingTicketId === t.ticketId}
+                                className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50 whitespace-nowrap"
+                              >
+                                {deletingTicketId === t.ticketId ? 'Deleting…' : 'Delete'}
                               </button>
                             )}
                           </div>

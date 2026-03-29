@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react'
+import { useAuth } from '../contexts/AuthContext'
 import { AdminSettings, AdminUser, RAGConfig, AuditLogEntry } from '../types'
 import { STORAGE_KEYS } from '../utils/constants'
 import { getHealth, type HealthResponse } from '../services/healthService'
@@ -9,7 +10,13 @@ import {
   type FeedbackSummaryResponse,
   type FlaggedFeedbackItem
 } from '../services/feedbackService'
-import { listKbDocuments, uploadKbDocument, type KbClassification, type KbDocument } from '../services/kbService'
+import {
+  listKbDocuments,
+  uploadKbDocument,
+  deleteKbDocument,
+  type KbClassification,
+  type KbDocument
+} from '../services/kbService'
 import { ApiClientError } from '../services/apiClient'
 import { formatSatisfactionPercent } from '../utils/satisfactionDisplay'
 import { applyTheme, normalizeThemeValue, persistTheme } from '../utils/theme'
@@ -34,6 +41,7 @@ const DEFAULT_RAG: RAGConfig = {
 type AdminTab = 'users' | 'rag' | 'audit' | 'feedback' | 'kb'
 
 export default function Admin() {
+  const { role } = useAuth()
   const [tab, setTab] = useState<AdminTab>('users')
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [healthError, setHealthError] = useState('')
@@ -55,6 +63,7 @@ export default function Admin() {
   const [uploadClassification, setUploadClassification] = useState<KbClassification>('public')
   const [uploading, setUploading] = useState(false)
   const [uploadMessage, setUploadMessage] = useState('')
+  const [kbDeletingPath, setKbDeletingPath] = useState<string | null>(null)
   const [settings, setSettings] = useState<AdminSettings>({
     profile: { name: 'Admin User', email: 'admin@company.com', role: 'Administrator' },
     theme: 'light'
@@ -148,6 +157,26 @@ export default function Admin() {
       setUploadMessage(err instanceof Error ? err.message : 'Upload failed')
     } finally {
       setUploading(false)
+    }
+  }
+
+  const handleKbDelete = async (d: KbDocument) => {
+    if (
+      !window.confirm(
+        `Delete this document from storage and search index?\n\n${d.path}\n\nThis cannot be undone.`
+      )
+    ) {
+      return
+    }
+    setKbDeletingPath(d.path)
+    setKbError('')
+    try {
+      await deleteKbDocument(d.path)
+      await loadKb({ silent: true })
+    } catch (e) {
+      setKbError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : 'Delete failed')
+    } finally {
+      setKbDeletingPath(null)
     }
   }
 
@@ -618,6 +647,9 @@ export default function Admin() {
                     <th className="text-left px-4 py-3">Classification</th>
                     <th className="text-left px-4 py-3">Chunks</th>
                     <th className="text-left px-4 py-3">Created</th>
+                    {role === 'Admin' && (
+                      <th className="text-left px-4 py-3 w-28">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
@@ -629,6 +661,18 @@ export default function Admin() {
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
                         {d.createdUtc ? new Date(d.createdUtc).toLocaleString() : '—'}
                       </td>
+                      {role === 'Admin' && (
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => void handleKbDelete(d)}
+                            disabled={kbDeletingPath === d.path || kbRefreshing}
+                            className="text-sm text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                          >
+                            {kbDeletingPath === d.path ? 'Deleting…' : 'Delete'}
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

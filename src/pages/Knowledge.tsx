@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useAuth } from '../contexts/AuthContext'
 import { KnowledgeItem, KnowledgeCategory } from '../types'
 
 const CATEGORIES: KnowledgeCategory[] = ['Network', 'Physical', 'Compliance']
@@ -70,6 +71,8 @@ function formatDate(d: Date) {
 }
 
 export default function Knowledge() {
+  const { role } = useAuth()
+  const [items, setItems] = useState<KnowledgeItem[]>(() => MOCK_ITEMS.map((i) => ({ ...i })))
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<KnowledgeCategory | ''>('')
   const [dateFilter, setDateFilter] = useState('')
@@ -79,7 +82,7 @@ export default function Knowledge() {
   const [editContent, setEditContent] = useState('')
 
   const filtered = useMemo(() => {
-    let list = MOCK_ITEMS
+    let list = items
     if (query.trim()) {
       const q = query.toLowerCase()
       list = list.filter(
@@ -99,7 +102,7 @@ export default function Knowledge() {
       list = list.filter((item) => new Date(item.lastUpdated) >= cutoff)
     }
     return list
-  }, [query, categoryFilter, dateFilter])
+  }, [items, query, categoryFilter, dateFilter])
 
   const openDetail = (item: KnowledgeItem) => {
     setSelected(item)
@@ -110,10 +113,26 @@ export default function Knowledge() {
 
   const handleSaveEdit = () => {
     if (selected) {
-      // In a real app would update item and persist
-      setSelected({ ...selected, content: editContent, lastUpdated: new Date() })
+      const updated = { ...selected, content: editContent, lastUpdated: new Date() }
+      setSelected(updated)
+      setItems((prev) => prev.map((i) => (i.id === selected.id ? updated : i)))
       setEditing(false)
     }
+  }
+
+  const handleDeleteFaq = () => {
+    if (!selected || role !== 'Admin' || selected.type !== 'faq') return
+    if (
+      !window.confirm(
+        `Delete this FAQ from the demo list?\n\n"${selected.title}"\n\nThis only removes it in your browser session (mock data).`
+      )
+    ) {
+      return
+    }
+    const id = selected.id
+    setItems((prev) => prev.filter((i) => i.id !== id))
+    setSelected(null)
+    setEditing(false)
   }
 
   return (
@@ -279,6 +298,15 @@ export default function Knowledge() {
                         >
                           Edit
                         </button>
+                        {role === 'Admin' && selected.type === 'faq' && (
+                          <button
+                            type="button"
+                            onClick={handleDeleteFaq}
+                            className="mt-2 ml-0 block px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 text-sm font-medium"
+                          >
+                            Delete FAQ
+                          </button>
+                        )}
                       </>
                     )}
                   </>
