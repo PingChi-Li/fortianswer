@@ -88,6 +88,19 @@ export default function AppLayout() {
                 {!collapsed && <span>{item.label}</span>}
               </Link>
             ))}
+            {(role === 'Admin' || role === 'Agent') && (
+              <Link
+                to="/analytics"
+                className={`flex items-center gap-3 px-3 py-2.5 mx-2 rounded-lg transition-colors ${
+                  isActive('/analytics')
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                }`}
+              >
+                <span className="text-xl flex-shrink-0">📊</span>
+                {!collapsed && <span>Analytics</span>}
+              </Link>
+            )}
             {role === 'Admin' && (
               <Link
                 to="/admin"

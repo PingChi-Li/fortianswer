@@ -31,8 +31,10 @@ export interface FeedbackSummaryResponse {
   }[]
 }
 
-export async function getFeedbackSummary(): Promise<FeedbackSummaryResponse> {
-  return apiFetchJson<FeedbackSummaryResponse>('/api/feedback/summary?role=admin')
+export type FeedbackApiRole = 'admin' | 'agent'
+
+export async function getFeedbackSummary(role: FeedbackApiRole = 'admin'): Promise<FeedbackSummaryResponse> {
+  return apiFetchJson<FeedbackSummaryResponse>(`/api/feedback/summary?role=${role}`)
 }
 
 export interface FlaggedFeedbackItem {
@@ -48,13 +50,16 @@ export interface FlaggedFeedbackResponse {
   items: FlaggedFeedbackItem[]
 }
 
-export async function getFlaggedFeedback(): Promise<FlaggedFeedbackResponse> {
-  return apiFetchJson<FlaggedFeedbackResponse>('/api/feedback/flagged?role=admin')
+export async function getFlaggedFeedback(role: FeedbackApiRole = 'admin'): Promise<FlaggedFeedbackResponse> {
+  return apiFetchJson<FlaggedFeedbackResponse>(`/api/feedback/flagged?role=${role}`)
 }
 
-export async function dismissFeedback(requestId: string): Promise<{ dismissed: boolean }> {
+export async function dismissFeedback(
+  requestId: string,
+  role: FeedbackApiRole = 'admin'
+): Promise<{ dismissed: boolean }> {
   return apiFetchJson<{ dismissed: boolean }>(
-    `/api/feedback/${encodeURIComponent(requestId)}/dismiss?role=admin`,
+    `/api/feedback/${encodeURIComponent(requestId)}/dismiss?role=${role}`,
     { method: 'PATCH', body: '{}' }
   )
 }

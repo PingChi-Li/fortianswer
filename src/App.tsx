@@ -8,6 +8,7 @@ import Register from './pages/Register'
 import Landing from './pages/Landing'
 import Chat from './pages/Chat'
 import Admin from './pages/Admin'
+import Analytics from './pages/Analytics'
 import CreateTicket from './pages/CreateTicket'
 import ContactSupport from './pages/ContactSupport'
 import Escalate from './pages/Escalate'
@@ -31,6 +32,7 @@ function App() {
                 <Route path="/knowledge" element={<Knowledge />} />
                 <Route path="/tickets" element={<Tickets />} />
                 <Route path="/admin" element={<Admin />} />
+                <Route path="/analytics" element={<Analytics />} />
                 <Route path="/create-ticket" element={<CreateTicket />} />
                 <Route path="/contact-support" element={<ContactSupport />} />
                 <Route path="/escalate" element={<Escalate />} />
