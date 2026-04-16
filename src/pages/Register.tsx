@@ -2,8 +2,11 @@ import { useState, FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import type { AppRole } from '../types'
-
-const MIN_PASSWORD_LENGTH = 10
+import {
+  AUTH_PASSWORD_MAX_LENGTH,
+  AUTH_PASSWORD_MIN_LENGTH,
+  AUTH_USERNAME_MAX_LENGTH
+} from '../utils/authInputLimits'
 
 export default function Register() {
   const navigate = useNavigate()
@@ -32,8 +35,16 @@ export default function Register() {
       setError('Password is required')
       return
     }
-    if (formData.password.length < MIN_PASSWORD_LENGTH) {
-      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
+    if (trimmed.length > AUTH_USERNAME_MAX_LENGTH) {
+      setError(`Username must be at most ${AUTH_USERNAME_MAX_LENGTH} characters`)
+      return
+    }
+    if (formData.password.length > AUTH_PASSWORD_MAX_LENGTH) {
+      setError(`Password must be at most ${AUTH_PASSWORD_MAX_LENGTH} characters`)
+      return
+    }
+    if (formData.password.length < AUTH_PASSWORD_MIN_LENGTH) {
+      setError(`Password must be at least ${AUTH_PASSWORD_MIN_LENGTH} characters`)
       return
     }
 
@@ -85,13 +96,14 @@ export default function Register() {
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter username"
                 autoComplete="username"
+                maxLength={AUTH_USERNAME_MAX_LENGTH}
                 required
               />
             </div>
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Password * (min 10 characters)
+                Password * (min {AUTH_PASSWORD_MIN_LENGTH} characters)
               </label>
               <input
                 id="password"
@@ -101,8 +113,9 @@ export default function Register() {
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter password"
                 autoComplete="new-password"
+                maxLength={AUTH_PASSWORD_MAX_LENGTH}
                 required
-                minLength={MIN_PASSWORD_LENGTH}
+                minLength={AUTH_PASSWORD_MIN_LENGTH}
               />
             </div>
 

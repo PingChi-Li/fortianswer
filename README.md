@@ -86,13 +86,49 @@ The app talks to **real** Azure Functions endpoints via [`apiClient`](src/servic
 
 Legacy mock demos may still exist under `src/services/api.ts` for local experiments; production flows use the services above.
 
+## Security Features
+
+Security controls implemented by this **SPA** and Static Web App configuration.
+
+### Implemented in this repo (audit checklist)
+
+- **Control:** Security response headers  
+  **Where:** [`staticwebapp.config.json`](staticwebapp.config.json)  
+  **Why:** Adds `Content-Security-Policy` (including `connect-src`), `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, and `Strict-Transport-Security` to harden browser behavior in production.
+
+- **Control:** Credential input limits  
+  **Where:** [`src/utils/authInputLimits.ts`](src/utils/authInputLimits.ts), consumed by [`src/pages/Login.tsx`](src/pages/Login.tsx) and [`src/pages/Register.tsx`](src/pages/Register.tsx)  
+  **Why:** Keeps username/password lengths bounded and consistent across auth forms.
+
+- **Control:** Login retry cooldown  
+  **Where:** [`src/pages/Login.tsx`](src/pages/Login.tsx)  
+  **Why:** Introduces client-side friction after repeated failed attempts to reduce rapid brute-force retries.
+
+- **Control:** Generic authentication errors  
+  **Where:** [`src/services/authService.ts`](src/services/authService.ts)  
+  **Why:** Avoids exposing backend auth details in user-facing error messages.
+
+- **Control:** Rate-limit handling  
+  **Where:** [`src/services/apiClient.ts`](src/services/apiClient.ts)  
+  **Why:** Handles `429 Too Many Requests` with clear UX feedback and safer request behavior.
+
+- **Control:** XSS-conscious message rendering  
+  **Where:** Chat UI components such as [`src/components/chat/MessageBubble.tsx`](src/components/chat/MessageBubble.tsx)  
+  **Why:** Uses React text rendering patterns and avoids raw untrusted HTML injection.
+
+### Notes for this codebase
+
+- [`src/contexts/AuthContext.tsx`](src/contexts/AuthContext.tsx) persists `{ username, role }` in **localStorage** for UI and routing only; it is not tamper-proof.
+- **`VITE_API_KEY`** is embedded in the client build; treat it as a shared client header value, not a private secret.
+
 ## Deploy (Azure Static Web Apps)
 
 If your repo includes a GitHub Actions workflow for Azure Static Web Apps:
 
 1. Configure repository secrets (e.g. deployment token from Azure).
 2. Set build-time env (e.g. `VITE_API_BASE_URL`, `VITE_API_KEY`) in GitHub Actions secrets / workflow `env` so the production build embeds the correct API URL and key.
-3. Ensure CORS on the Function App allows your Static Web App origin.
+3. Ensure your API allows requests from the Static Web App origin (CORS), if applicable.
+4. If the API host differs from `staticwebapp.config.json`, update **`Content-Security-Policy` `connect-src`** (see **Security Features**).
 
 ## Browser support
 

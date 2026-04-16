@@ -31,14 +31,14 @@ export async function login(username: string, password: string): Promise<LoginRe
 
   if (!res.ok) {
     if (res.status === 401) {
-      throw new Error(body?.message ?? 'Invalid username or password')
+      throw new Error('Invalid username or password')
     }
-    throw new Error(body?.message ?? res.statusText ?? 'Login failed')
+    throw new Error('Unable to sign in. Please try again later.')
   }
 
   const data = body as LoginResponse
   if (!data.authenticated || !data.username || !data.role) {
-    throw new Error('Invalid login response')
+    throw new Error('Unable to sign in. Please try again later.')
   }
 
   return data
